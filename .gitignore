@@ -1,0 +1,18 @@
+# Ansible — inventory contains real IPs and credentials
+infrastructure/ansible/inventory/hosts.yml
+infrastructure/ansible/group_vars/all/vault.yml
+
+# Secrets
+.env
+*.key
+*.pem
+secrets.yml
+credentials.json
+vault.yml
+
+# OS noise
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+*.log
