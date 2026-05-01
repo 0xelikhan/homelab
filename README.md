@@ -1,12 +1,11 @@
-# homelab
+# Home Lab
 
-A production-style security operations lab running 20 VMs across 6 segmented VLANs on a Proxmox hypervisor. Built to develop and validate detection engineering skills across the full attack lifecycle.
 
 ## Architecture
 
 | Layer | Tools |
 |-------|-------|
-| Hypervisor | Proxmox VE 8.x — ThinkCentre, 32GB RAM |
+| Hypervisor | Proxmox VE 8.x |
 | Firewall / IDS | pfSense CE + Suricata |
 | SIEM | Wazuh + Graylog + ElastAlert |
 | DFIR | Velociraptor + DFIR-IRIS + TheHive + Cortex |
@@ -20,16 +19,6 @@ A production-style security operations lab running 20 VMs across 6 segmented VLA
 | Deception | OpenCanary + Canarytokens |
 | Automation | Ansible + Tailscale |
 
-## VLAN Segmentation
-
-| VLAN | Network | Purpose |
-|------|---------|---------|
-| 10 | 10.10.10.0/24 | SOC tools — Wazuh, Velociraptor, ElastAlert, IRIS |
-| 20 | 10.10.20.0/24 | Victim network — AD DC, Windows 11, honeypot |
-| 30 | 10.10.30.0/24 | Attacker — Kali Linux |
-| 40 | 10.10.40.0/24 | Servers — web app, Kubernetes |
-| 50 | 10.10.50.0/24 | Monitoring — Security Onion span port |
-| 99 | 10.10.99.0/24 | Isolated — Cuckoo, FLARE-VM, no internet |
 
 ## Structure
 
@@ -71,17 +60,4 @@ homelab/
 └── web-app/                Vulnerable Flask app, Burp Suite, OWASP ZAP, WAF
 ```
 
-## Detection rules
 
-Sigma rules and YARA rules built and tested in this lab live in a dedicated repo:
-[detection-rules](https://github.com/YOUR-USERNAME/detection-rules)
-
-## Cloud lab
-
-AWS and Microsoft Sentinel work is in a dedicated repo:
-[cloud](https://github.com/YOUR-USERNAME/cloud)
-
-## Detection tools
-
-Custom Python tools built to extend this lab's capability:
-[scripts](https://github.com/YOUR-USERNAME/scripts)
