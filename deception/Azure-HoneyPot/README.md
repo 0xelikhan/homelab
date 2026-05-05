@@ -51,7 +51,6 @@ The objective of this project was to design and implement a simulated `Security 
 [`15. FAILED LOGON ATTEMPTS TIMELINE`](#15-failed-logon-attempts-timeline)</br>
 [`16. CREATING A CUSTOM DETECTION RULE`](#16-creating-a-custom-detection-rule)</br>
 [`17. INCIDENT RESPONSE IN MICROSOFT SENTINEL`](#17-incident-response-in-microsoft-sentinel)</br>
-[`18. CLOSING OUT THE INCIDENT`](#18-closing-out-the-incident)
 
 
 
