@@ -1,0 +1,165 @@
+name,category,feed_url
+BushidoToken Threat Intel,Analyst,https://blog.bushidotoken.net/feeds/posts/default
+SecurityBreak,Analyst,https://blog.securitybreak.io/feed
+Connof McGarr,Analyst,https://connormcgarr.github.io/feed.xml
+DataBreaches,Analyst,https://databreaches.net/feed/
+deepdarkCTI,Analyst,https://deepdarkcti.com/feed/
+defend.network Daily Briefings,Analyst,https://defend.network/feed.xml
+DoublePulsar (Kevin Beaumont),Analyst,https://doublepulsar.com/feed
+Cyber Intelligence Insights,Analyst,https://intelinsights.substack.com/feed
+Krebs on Security,Analyst,https://krebsonsecurity.com/feed/
+Raghavti Research,Analyst,https://medium.com/@raghavtiresearch/feed
+Tal Be'ery,Analyst,https://medium.com/@TalBeerySec/feed
+On the Hunt (Newton Paul),Analyst,https://newtonpaul.com/rss.xml
+The DFIR Report,Analyst,https://thedfirreport.com/feed/
+The Raven File,Analyst,https://theravenfile.com/feed/
+bellingcat,Analyst,https://www.bellingcat.com/feed
+Cybercrime Diaries,Analyst,https://www.cybercrimediaries.com/blog-feed.xml
+Darknet,Analyst,https://www.darknet.org.uk/feed/
+Lohrmann on Cybersecurity,Analyst,https://www.govtech.com/blogs/lohrmann-on-cybersecurity.rss
+Schneier on Security,Analyst,https://www.schneier.com/feed/
+Troy Hunt,Analyst,https://www.troyhunt.com/rss/
+Will's Root,Analyst,https://www.willsroot.io/feeds/posts/default
+Citizen Lab,Community,https://citizenlab.ca/feed
+Ctrl-Alt-Int3l,Community,https://ctrlaltintel.com/feed.xml
+Detect FYI,Community,https://detect.fyi/feed
+Open Source Malware,Community,https://opensourcemalware.com/rss.xml
+Ransom-ISAC,Community,https://ransom-isac.org/feed.xml
+Cert Polska,Government,https://cert.pl/en/atom.xml
+CERT-FR MENACES ET INCIDENTS,Government,https://cert.cyber.gouv.fr/cti/feed/
+Security Affairs,Media,https://securityaffairs.com/feed
+Ars Technica,Media,https://arstechnica.com/tag/security/feed/
+Cyberscoop,Media,https://cyberscoop.com/feed/
+Security Online,Media,https://securityonline.info/feed
+TechCrunch,Media,https://techcrunch.com/feed/
+The Hacker News,Media,https://feeds.feedburner.com/TheHackersNews
+BleepingComputer,Media,https://www.bleepingcomputer.com/feed/
+CIO Magazine,Media,https://www.cio.com/feed/
+Dark Reading,Media,https://www.darkreading.com/rss.xml
+Graham Cluley,Media,https://grahamcluley.com/feed/
+HackRead,Media,https://hackread.com/feed/
+SecurityWeek,Media,https://www.securityweek.com/feed/
+TechRepublic,Media,https://www.techrepublic.com/feed/
+The Guardian,Media,https://www.theguardian.com/technology/data-computer-security/rss
+WIRED,Media,https://www.wired.com/feed/rss
+ZDNet,Media,https://www.zdnet.com/rss/all/
+ANY.RUN,Vendor,https://any.run/cybersecurity-blog/feed/
+Arctic Wolf,Vendor,https://arcticwolf.com/feed/
+AhnLab Security Intelligence Center,Vendor,https://asec.ahnlab.com/en/feed/
+AWS Security,Vendor,https://aws.amazon.com/blogs/security/feed/
+BforeAI,Vendor,https://bfore.ai/feed/
+Cloudflare,Vendor,https://blog.cloudflare.com/rss/
+EclecticIQ,Vendor,https://blog.eclecticiq.com/rss.xml
+Fox-IT International blog,Vendor,https://blog.fox-it.com/feed/
+Google Threat Analysis Group,Vendor,https://blog.google/security/rss
+KnowBe4,Vendor,https://blog.knowbe4.com/rss.xml
+Morphisec Breach Prevention Blog,Vendor,https://www.morphisec.com/feed/
+NVISO,Vendor,https://blog.nviso.eu/feed/
+Predictive Defense Blog,Vendor,https://blog.predictivedefense.io/feed
+Pulsedive,Vendor,https://blog.pulsedive.com/rss/
+Qualys Blog,Vendor,https://blog.qualys.com/feed
+Cisco Talos Intelligence Group,Vendor,https://blog.talosintelligence.com/rss/
+VirusTotal Blog,Vendor,https://blog.virustotal.com/feeds/posts/default
+QiAnXin XLab,Vendor,https://blog.xlab.qianxin.com/rss/
+Infoblox Threat Intel,Vendor,https://www.infoblox.com/blog/feed/
+BRANDEFENSE Blog,Vendor,https://brandefense.io/feed/
+Canary Trap,Vendor,https://canarytrap.com/feed/
+Censys,Vendor,https://censys.com/feed/
+Checkmarx,Vendor,https://checkmarx.com/zero/feed
+Claroty,Vendor,https://claroty.com/team82/disclosure-dashboard/feed/atom
+Cyble,Vendor,https://cyble.com/feed/
+Expel,Vendor,https://expel.com/blog/rss.xml
+Fidelis Security,Vendor,https://fidelissecurity.com/feed/
+GitHub Security Lab Archives,Vendor,https://github.blog/feed/
+Google Project Zero (Legacy),Vendor,https://projectzero.google/feed.xml
+Heimdal,Vendor,https://heimdalsecurity.com/blog/posts/feed
+IRONSCALES,Vendor,https://ironscales.com/threat-intelligence/rss.xml
+iVerify,Vendor,https://rss.iverify.com/rss.xml
+CosmicBytez,Vendor,https://labs.cosmicbytez.ca/rss.xml
+JumpSec Labs,Vendor,https://labs.jumpsec.com/feed
+LevelBlue SpiderLabs Blog,Vendor,https://www.levelblue.com/blogs/spiderlabs-blog/rss.xml
+RST Cloud,Vendor,https://medium.com/@rst_cloud/feed
+Doctor Web,Vendor,https://news.drweb.com/rss/get/?c=5&lng=en
+SpecterOps Blog,Vendor,https://specterops.io/feed/podcast
+Reliaquest,Vendor,https://reliaquest.com/rss.xml
+Checkpoint,Vendor,https://research.checkpoint.com/feed
+SecureList by Kaspersky,Vendor,https://securelist.com/feed/
+Security Scorecard,Vendor,https://securityscorecard.com/feed/
+SensePost by Orange Cyberdefense,Vendor,https://sensepost.com/rss.xml
+Socket,Vendor,https://socket.dev/api/blog/feed.atom
+SOC Prime,Vendor,https://socprime.com/feed/
+SOC Radar,Vendor,https://socradar.io/feed/
+The Record,Vendor,https://therecord.media/feed
+Threatmon,Vendor,https://threatmon.io/feed/
+TrustedSec,Vendor,https://trustedsec.com/feed.rss
+PaloAlto Networks Unit 42,Vendor,https://unit42.paloaltonetworks.com/feed/
+AquaSec,Vendor,https://www.aquasec.com/blog/rss.xml
+Aryaka,Vendor,https://www.aryaka.com/blog/feed
+Black Hills,Vendor,https://www.blackhillsinfosec.com/blog/feed
+Chainalysis,Vendor,https://www.chainalysis.com/blog/feed
+Center for Internet Security,Vendor,https://www.cisecurity.org/advisory/feed
+CloudSEK,Vendor,https://www.cloudsek.com/blog/rss.xml
+Crowdstrike,Vendor,https://www.crowdstrike.com/en-us/blog/feed
+Cybereason,Vendor,https://www.levelblue.com/blogs/levelblue-blog/rss.xml
+Cyera,Vendor,https://www.cyera.com/blog/rss.xml
+Cyera Research Labs,Vendor,https://www.cyera.com/research/rss.xml
+Deep Instinct,Vendor,https://www.deepinstinct.com/blog/feed
+DomainTools,Vendor,https://www.domaintools.com/blog/rss.xml
+Elastic,Vendor,https://www.elastic.co/security-labs/rss.xml
+Group IB,Vendor,https://www.group-ib.com/blog/feed
+Hack the Box,Vendor,https://www.hackthebox.com/blog/rss.xml
+Helpnet Security,Vendor,https://www.helpnetsecurity.com/feed/
+Huntress,Vendor,https://www.huntress.com/blog/rss.xml
+Infostealers by HudsonRock,Vendor,https://www.infostealers.com/feed/
+Intrinsec,Vendor,https://www.intrinsec.com/feed/
+JumpSec Blog,Vendor,https://www.jumpsec.com/feed/
+Malwarebytes Labs,Vendor,https://www.malwarebytes.com/blog/feed
+Microsoft Security Blog,Vendor,https://www.microsoft.com/en-us/security/blog/feed/
+NetSkope,Vendor,https://www.netskope.com/the-lens/threat-research/feed
+Nextron,Vendor,https://www.nextron-systems.com/feed/
+Recorded Future,Vendor,https://www.recordedfuture.com/feed
+ReversingLabs,Vendor,https://www.reversinglabs.com/blog/rss.xml
+RunZero,Vendor,https://www.runzero.com/blog/index.xml
+security.com,Vendor,https://www.security.com/rss/v1/blogs/rss.xml
+SentinelOne,Vendor,https://www.sentinelone.com/blog/feed
+seqrite,Vendor,https://www.seqrite.com/blog/feed/
+Sysdig,Vendor,https://www.sysdig.com/blog/rss.xml
+Tenable,Vendor,https://feeds.feedburner.com/tenable/qaXL
+Trinity Cyber,Vendor,https://www.trinitycyber.com/blog/rss.xml
+UpGuard Blog,Vendor,https://www.upguard.com/blog/rss.xml
+Vectra,Vendor,https://www.vectra.ai/blog/rss.xml
+Virus Bulletin,Vendor,https://virusbulletin.com/rss
+WatchGuard Seplicity,Vendor,https://www.watchguard.com/wgrd-security-hub/secplicity-blog/feed
+WIZ Blog,Vendor,https://www.wiz.io/blog/rss
+Zero Day Initiative,Vendor,https://www.thezdi.com/blog?format=rss
+Zimperium,Vendor,https://zimperium.com/blog/rss.xml
+Zynap,Vendor,https://www.zynap.com/blog/feed
+Google Online Security Blog,Vendor,http://feeds.feedburner.com/GoogleOnlineSecurityBlog
+The Hacker News,News,http://feeds.feedburner.com/TheHackersNews?format=xml
+ESET WeLiveSecurity,Vendor,http://feeds.feedburner.com/eset/blog
+Trend Micro Research,Vendor,http://feeds.trendmicro.com/TrendMicroResearch
+XPN InfoSec,Analyst,https://blog.xpnsec.com/rss.xml
+Cisco Security,Vendor,https://blogs.cisco.com/security/feed
+Red Canary,Vendor,https://redcanary.com/feed/
+CISA Advisories,Government,https://www.cisa.gov/cybersecurity-advisories/all.xml
+CIS Advisories,Government,https://www.cisecurity.org/feed/advisories
+Infosecurity Magazine,News,https://www.infosecurity-magazine.com/rss/news/
+NCSC UK Reports,Government,https://www.ncsc.gov.uk/api/1/services/v1/report-rss-feed.xml
+Proofpoint,Vendor,https://www.proofpoint.com/us/rss.xml
+Schneier on Security,Analyst,https://www.schneier.com/feed/atom/
+SentinelOne Labs,Vendor,https://www.sentinelone.com/labs/feed/
+Tyranid's Lair,Analyst,https://www.tiraniddo.dev/feeds/posts/default
+Microsoft Threat Intelligence,Vendor,https://www.microsoft.com/en-us/security/blog/topic/threat-intelligence/feed/
+FS-ISAC News,ISAC,https://www.fsisac.com/newsroom/rss.xml
+infosec.exchange #threatintel,Community,https://infosec.exchange/tags/threatintel.rss
+infosec.exchange #cti,Community,https://infosec.exchange/tags/cti.rss
+infosec.exchange #malware,Community,https://infosec.exchange/tags/malware.rss
+infosec.exchange #ransomware,Community,https://infosec.exchange/tags/ransomware.rss
+infosec.exchange #ioc,Community,https://infosec.exchange/tags/ioc.rss
+infosec.exchange #cve,Community,https://infosec.exchange/tags/cve.rss
+infosec.exchange #infosec,Community,https://infosec.exchange/tags/infosec.rss
+infosec.exchange #dfir,Community,https://infosec.exchange/tags/dfir.rss
+SANS ISC Diary,Government,https://isc.sans.edu/rssfeed_full.xml
+Canadian Centre for Cyber Security,Government,https://www.cyber.gc.ca/api/cccs/rss/v1/get?feed=alerts_advisories&lang=en
+CISA Known Exploited Vulnerabilities,Government,https://www.cisa.gov/cybersecurity-advisories/ics-advisories.xml
+Google Cloud Threat Intelligence (Mandiant),Vendor,https://cloudblog.withgoogle.com/topics/threat-intelligence/rss/
