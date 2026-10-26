@@ -16,7 +16,11 @@ Running in the cluster: Falco (modern eBPF driver), Falcosidekick, Fluent Bit, T
 | Wazuh agent | k8s-01 | Ships `events.json` plus auditd |
 | Wazuh rules 100380 to 100383 | [siem/wazuh](../../siem/wazuh/README.md) | Notice = level 5, Warning = 8, Error and above = 12 |
 
-Falco needs a CPU with x86-64-v2. On the old `kvm64` CPU type its init container fails and Falco never starts.
+Falco needs a CPU with x86-64-v2. On the old `kvm64` CPU type it never starts.
+
+Falco uses the rules bundled in its image. The falcoctl rule download is turned off (`falcoctl.artifact.install.enabled=false`) so Falco starts without internet access right after a boot.
+
+`/var/log/falco/events.json` is rotated daily, 3 days kept (`/etc/logrotate.d/falco-events`).
 
 Test it:
 

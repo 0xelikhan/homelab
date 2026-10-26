@@ -4,7 +4,7 @@
 |---|---|
 | Container | LXC 103 `elastalert`, VLAN 10 |
 | Access | `pct enter 103` from Proxmox |
-| Service | `elastalert.service` |
+| Service | `elastalert.service`. A drop-in (`wait-indexer.conf`) makes it wait up to 5 minutes for the Wazuh indexer at start |
 | Reads from | Wazuh indexer |
 
 Runs alert rules against the Wazuh indexer every minute.
