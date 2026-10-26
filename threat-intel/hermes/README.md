@@ -3,6 +3,8 @@
 | Item | Value |
 |---|---|
 | Container | LXC 120 `hermes`, VLAN 10, Ubuntu 24.04, 2 GB RAM, unprivileged |
+| Group | `cti` (always on) |
+| Delivery | Telegram bot, paired to one account |
 | Version | Hermes Agent (Nous Research), stable channel |
 | Model | Anthropic Claude Sonnet |
 
@@ -17,11 +19,25 @@ hermes -z "what do we know about <indicator>" --skills cti-ioc-lookup
 
 ## Scheduled jobs
 
+All three deliver to Telegram. Failures are sent there too.
+
 | Job | When | Output |
 |---|---|---|
-| daily-cti-brief | every morning | daily brief |
-| weekly-cti-roundup | Monday morning | weekly roundup |
+| daily-cti-brief | 07:00 every day | daily brief |
+| weekly-cti-roundup | Monday 08:00 | weekly roundup |
 | fin-ransomware-flash | every 2 h, only when new financial-sector victims appear | flash note |
+
+Run one now: `hermes cron run <job id>` (from `hermes cron list`). Copies are kept in `~/.hermes/cron/output/` and `~/briefs/`.
+
+## Telegram
+
+| Setting | Where |
+|---|---|
+| Bot token, allowed user, home chat | `~/.hermes/.env` (`TELEGRAM_*`) |
+| Pairing | `hermes pairing list` / `approve` / `revoke` |
+| Gateway service | `hermes gateway status` / `restart` (user systemd service, survives logout) |
+
+Only the paired account can talk to the bot. Anyone else is refused. Telegram works on phone, desktop and web at the same time.
 
 ## Skills
 

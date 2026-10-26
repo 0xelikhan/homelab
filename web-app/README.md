@@ -4,7 +4,7 @@
 |---|---|
 | VM | 106 `web-01`, VLAN 40, 2 GB RAM |
 | Web | port 80 |
-| Group | core |
+| Group | attack |
 
 | Component | What |
 |---|---|

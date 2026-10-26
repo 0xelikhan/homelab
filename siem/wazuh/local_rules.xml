@@ -1,0 +1,170 @@
+<group name="custom_detections,">
+  <rule id="100001" level="12">
+    <if_group>sysmon</if_group>
+    <field name="win.eventdata.targetImage">\\lsass.exe</field>
+    <field name="win.eventdata.sourceImage">\\taskmgr.exe</field>
+    <description>Credential Dumping: Task Manager -> LSASS (T1003.001)</description>
+    <mitre><id>T1003.001</id></mitre>
+  </rule>
+  <rule id="100002" level="10">
+    <if_group>sysmon</if_group>
+    <field name="win.eventdata.image">\\powershell.exe</field>
+    <field name="win.eventdata.commandLine">-enc|-EncodedCommand</field>
+    <description>PowerShell Encoded Command (T1059.001)</description>
+    <mitre><id>T1059.001</id></mitre>
+  </rule>
+</group>
+
+<group name="osquery,custom_osquery,">
+  <rule id="100200" level="2">
+    <decoded_as>json</decoded_as>
+    <field name="name">\.+</field>
+    <field name="hostIdentifier">\.+</field>
+    <description>osquery: result for query $(name)</description>
+    <options>no_full_log</options>
+  </rule>
+  <rule id="100201" level="6">
+    <if_sid>100200</if_sid>
+    <field name="name">outbound_connections</field>
+    <description>osquery: outbound connection detected</description>
+    <mitre>
+      <id>T1071</id>
+    </mitre>
+  </rule>
+</group>
+
+<group name="lab_detections,">
+  <!-- LAB CUSTOM RULES: imported from detection rule repos -->
+
+
+  <!-- LSASS Dump (Sysmon EID 10) -->
+  <rule id="100300" level="15">
+    <if_group>sysmon_event_10</if_group>
+    <field name="win.eventdata.targetImage" type="pcre2">(?i)lsass\.exe</field>
+    <field name="win.eventdata.sourceImage" type="pcre2">(?i)^(?!.*(ossec-agent|wazuh-agent|MsMpEng|svchost|wininit|csrss|lsm|Sysmon64|velociraptor|vmtoolsd|WmiPrvSE)\.exe$).+$</field>
+    <description>LSASS process access: possible credential dump ($(win.eventdata.sourceImage))</description>
+    <mitre>
+      <id>T1003.001</id>
+    </mitre>
+  </rule>
+
+  <!-- PowerShell encoded command -->
+  <rule id="100301" level="12">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(-enc|-EncodedCommand)\s+[A-Za-z0-9+/=]{20,}</field>
+    <description>PowerShell encoded command execution (T1059.001)</description>
+    <mitre>
+      <id>T1059.001</id>
+    </mitre>
+  </rule>
+
+  <!-- Kerberoasting RC4 ticket -->
+  <rule id="100302" level="12">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4769$</field>
+    <field name="win.eventdata.ticketEncryptionType">^0x17$</field>
+    <description>Kerberoasting: RC4 service ticket requested (T1558.003)</description>
+    <mitre>
+      <id>T1558.003</id>
+    </mitre>
+  </rule>
+
+  <!-- Atomic Red Team execution marker -->
+  <rule id="100303" level="10">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(Invoke-AtomicTest|atomic-red-team)</field>
+    <description>Atomic Red Team test execution detected</description>
+  </rule>
+
+  <!-- BloodHound / SharpHound -->
+  <rule id="100304" level="12">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(SharpHound|CollectionMethods|BloodHound)</field>
+    <description>BloodHound/SharpHound AD enumeration (T1087.002)</description>
+    <mitre>
+      <id>T1087.002</id>
+    </mitre>
+  </rule>
+
+  <!-- SMB admin share access -->
+  <rule id="100305" level="10">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^5140$</field>
+    <field name="win.eventdata.shareName" type="pcre2">(?i)(Admin\$|C\$|IPC\$)</field>
+    <description>Admin share access: lateral movement indicator (T1021.002)</description>
+    <mitre>
+      <id>T1021.002</id>
+    </mitre>
+  </rule>
+
+  <!-- Pass-the-Hash NTLM -->
+  <rule id="100306" level="12">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4624$</field>
+    <field name="win.eventdata.logonType">^3$</field>
+    <field name="win.eventdata.authenticationPackageName">^NTLM$</field>
+    <description>NTLM network logon: possible Pass-the-Hash (T1550.002)</description>
+    <mitre>
+      <id>T1550.002</id>
+    </mitre>
+  </rule>
+
+  <!-- New local admin account -->
+  <rule id="100307" level="14">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4732$</field>
+    <field name="win.eventdata.groupName" type="pcre2">(?i)Administrators</field>
+    <description>User added to local Administrators group (T1098)</description>
+    <mitre>
+      <id>T1098</id>
+    </mitre>
+  </rule>
+
+  <!-- DNS tunneling anomaly (long query) -->
+  <rule id="100308" level="10">
+    <if_group>sysmon_event_22</if_group>
+    <field name="win.eventdata.queryName" type="pcre2">.{52,}</field>
+    <description>Suspiciously long DNS query: possible DNS tunneling (T1071.004)</description>
+    <mitre>
+      <id>T1071.004</id>
+    </mitre>
+  </rule>
+</group>
+
+<group name="honeypot,">
+  <rule id="100360" level="0">
+    <decoded_as>json</decoded_as>
+    <location>/var/log/opencanary/opencanary.log</location>
+    <description>OpenCanary event</description>
+  </rule>
+  <rule id="100361" level="8">
+    <if_sid>100360</if_sid>
+    <field name="logtype">^5001$</field>
+    <description>Honeypot: port probe on $(dst_port) from $(src_host) (T1046)</description>
+    <mitre><id>T1046</id></mitre>
+  </rule>
+  <rule id="100362" level="12">
+    <if_sid>100360</if_sid>
+    <field name="logtype" type="pcre2">^([2346789]|1[0-8])\d{3}$</field>
+    <description>Honeypot: OpenCanary interaction on $(dst_port) from $(src_host)</description>
+    <mitre><id>T1078</id></mitre>
+  </rule>
+  <rule id="100370" level="0">
+    <decoded_as>json</decoded_as>
+    <location>/opt/cowrie/var/log/cowrie/cowrie.json</location>
+    <description>Cowrie event</description>
+  </rule>
+  <rule id="100371" level="10">
+    <if_sid>100370</if_sid>
+    <field name="eventid">^cowrie.login</field>
+    <description>Honeypot: Cowrie SSH login attempt as $(username) from $(src_ip) (T1110)</description>
+    <mitre><id>T1110</id></mitre>
+  </rule>
+  <rule id="100372" level="12">
+    <if_sid>100370</if_sid>
+    <field name="eventid">^cowrie.command.input$</field>
+    <description>Honeypot: command run in Cowrie from $(src_ip): $(input)</description>
+    <mitre><id>T1059</id></mitre>
+  </rule>
+</group>
+
