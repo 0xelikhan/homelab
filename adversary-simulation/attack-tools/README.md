@@ -14,6 +14,14 @@ Planning and coverage tools for purple team work. A landing page on port 80 link
 | Attack Flow builder | 4.1.0, built from source | 8082 | Draw an attack as a sequence of techniques, export as STIX for OpenCTI |
 | DeTT&CT editor | 2.2.0, Docker `rabobankcdc/dettect` | 8080 | Score data source quality, visibility and detection per technique, export Navigator layers |
 
+## Layers
+
+| Layer | What it shows |
+|---|---|
+| [layers/wazuh-coverage.json](layers/wazuh-coverage.json) | Techniques with a Wazuh rule. Green: verified with a real event in the lab. Light green: custom rule not yet tested. Yellow: built-in Wazuh rule only |
+
+Open it in Navigator with Open Existing Layer, Upload from local. Test the light green techniques with `Invoke-AtomicTest` on DC01, then update the layer.
+
 ## Where things live
 
 | Path | What |

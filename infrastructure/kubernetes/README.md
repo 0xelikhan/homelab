@@ -26,6 +26,21 @@ sudo microk8s kubectl exec falco-test -- cat /etc/shadow      # "Read sensitive 
 sudo microk8s kubectl delete pod falco-test
 ```
 
+Falcosidekick runs with no outputs configured. Falco alerts reach Wazuh through the file above.
+
+## Container logs to the Wazuh indexer
+
+| Piece | Where | What it does |
+|---|---|---|
+| Fluent Bit (Helm release `fluent-bit`, namespace `logging`) | k8s-01 | Tails container logs and kubelet's journal, adds Kubernetes metadata |
+| Output | Wazuh indexer, port 9200 | Container logs to `k8s-logs-YYYY.MM.DD`, kubelet to `k8s-logs-node-YYYY.MM.DD` |
+| Indexer user `k8s-logs-writer` | Wazuh indexer | Write-only, `k8s-logs-*` indexes only. Password in the Kubernetes Secret `k8s-logs-indexer` |
+| Retention | ISM policy `k8s-logs-7d` | Deletes each daily index after 7 days |
+
+The firewall allows k8s-01 to the indexer port and nothing else on the SOC VLAN. Change Fluent Bit through Helm (`helm upgrade --reuse-values`), not by editing the ConfigMap, or the change is lost on the next upgrade.
+
+To search them, add the index pattern `k8s-logs-*` in the Wazuh dashboard (Dashboards Management, Index patterns). Logs sent while Wazuh is off are retried and then dropped.
+
 ## Planned Falco rules
 
 | Rule | MITRE |

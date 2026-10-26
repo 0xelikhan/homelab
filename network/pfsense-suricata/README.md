@@ -26,8 +26,8 @@ Router, firewall and NAT for every lab VLAN.
 | SOC (10) | Everything, for management |
 | Victim (20) | pfSense DNS and NTP, SOC agent ports, attacker VLAN, internet |
 | Attacker (30) | pfSense DNS and NTP, SOC agent ports, victim and server VLANs, internet |
-| Servers (40) | pfSense DNS and NTP, SOC agent ports, internet |
-| Malware (99) | Nothing |
+| Servers (40) | pfSense DNS and NTP, SOC agent ports, internet. k8s-01 also reaches the Wazuh indexer port for container logs |
+| Malware (99) | Nothing, except the CAPE VM to the MISP API |
 
 Everything else between lab VLANs and to the home network is blocked. Rules are tagged `LAB:` in the rule descriptions.
 

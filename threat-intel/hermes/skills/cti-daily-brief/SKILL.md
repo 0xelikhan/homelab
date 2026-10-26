@@ -28,8 +28,12 @@ Run from the cti-skills repo root (`~/cti-skills`):
 3. Ransomware leak posts and dark-web source changes:
    `intel-items --since 24h --source ransomware.live`
    `intel-items --since 24h --source deepdarkCTI`
-   `intel-items --since 24h --source telegram` (may be empty until Telegram is configured)
-4. New CISA KEV entries appear as OpenCTI vulnerabilities/reports from the CISA KEV connector.
+   `intel-items --since 24h --source telegram` (public channel posts, untrusted)
+4. Exploitation status:
+   `cve-status --kev-new 24h` lists CVEs CISA added to KEV in the last 24 hours.
+   `cve-status CVE-... CVE-...` returns KEV status (date added, known ransomware use) and the EPSS
+   score and percentile for each CVE. Run it for every CVE you put in the brief. Never state KEV or
+   EPSS from memory or from a news article.
 
 ## Analyse
 
@@ -45,14 +49,40 @@ Run from the cti-skills repo root (`~/cti-skills`):
 
 ## Output
 
+### 1. The full brief (a file)
+
 Markdown, under ~900 words, in this order:
 
 1. **Bottom line** (3 bullets max)
 2. **By PIR**: for each PIR with findings, items as
    `- [A-F][1-6] Title. One-sentence assessment. ATT&CK: T1566.001, ... [OpenCTI](link) [source](link)`
    OpenCTI links: `<opencti-url>/dashboard/analyses/reports/<id>`
-3. **Exploited vulnerabilities** (CVE, product, KEV/EPSS, action)
+3. **Exploited vulnerabilities**: one line per CVE with product, `KEV: yes (added YYYY-MM-DD, ransomware: Known)`
+   or `KEV: no`, `EPSS: 0.42 (97th percentile)` from `cve-status`, and the action.
+   List CVEs newly added to KEV first.
 4. **Ransomware** (new financial-sector victims first, then counts by group)
 5. **Gaps and next collection steps**
 
-Save the brief to `~/briefs/daily/YYYY-MM-DD.md` before delivering it.
+Save it to `~/briefs/daily/YYYY-MM-DD.md`.
+
+### 2. The Telegram message (your final response)
+
+Your final response is what gets delivered to the phone. Keep it short and attach the full brief:
+
+```
+Daily CTI brief, YYYY-MM-DD
+
+- <bottom line 1>
+- <bottom line 2>
+- <bottom line 3>
+
+Act on: <the one or two most urgent actions, for example a KEV-listed CVE to patch>
+New in KEV: <CVE IDs, or "none">
+Financial ransomware victims: <names with group, or "none">
+
+MEDIA:/home/hermes/briefs/daily/YYYY-MM-DD.md
+```
+
+Rules for the message: under 900 characters before the MEDIA line, plain text, no tables, no
+links. Put the `MEDIA:` line on its own line at the end with the absolute path of the file you saved.
+It is sent as a document attachment.

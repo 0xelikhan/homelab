@@ -1,6 +1,8 @@
 # Proxmox
 
-Proxmox VE 9.2 host. Setup scripts and per-VM installers live on the host, not in this repo.
+Proxmox VE 9.2 host on Debian 13 (trixie). Setup scripts and per-VM installers live on the host, not in this repo.
+
+Updates come from the Proxmox `pve-no-subscription` repository for trixie (`/etc/apt/sources.list.d/proxmox.sources`) plus Debian's main and security repositories. Apply with `apt update && apt full-upgrade`. A new kernel takes effect after a reboot.
 
 ## Lab groups
 

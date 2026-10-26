@@ -18,7 +18,10 @@ read-only, nothing TLP:RED or AMBER+STRICT, no .onion or forum access, no file d
 2. OpenCTI reports for the week: `python3 tools/clis/opencti.py list reports --created-after <ISO-7d-ago> --limit 300`
 3. MISP events: `python3 tools/clis/misp.py search-events --insecure --from <YYYY-MM-DD 7 days ago> --limit 300`
 4. Previous daily briefs: `~/briefs/daily/` for the last 7 days.
-5. Red Canary baseline: the most recent Threat Detection Report top techniques
+5. Exploitation status: `cve-status --kev-new 7d` for this week's KEV additions, and
+   `cve-status CVE-...` for every CVE you mention (KEV status and EPSS score). Never state KEV or EPSS
+   from memory or from a news article.
+6. Red Canary baseline: the most recent Threat Detection Report top techniques
    (https://redcanary.com/threat-detection-report/techniques/). Cache the list in
    `~/briefs/reference/redcanary-top-techniques.md` and refresh it when a new yearly report is out.
 
@@ -32,8 +35,12 @@ read-only, nothing TLP:RED or AMBER+STRICT, no .onion or forum access, no file d
 
 ## Output
 
-Markdown, under ~1200 words: Bottom line; Ransomware (financial sector table first); ATT&CK trend table
-(technique, this week count, Red Canary rank, status); Actor activity; Detection ideas (technique to
-Sigma/KQL idea, using the `sigma-writing` and `kql-writing` skills); Gaps.
+Markdown, under ~1200 words: Bottom line; Ransomware (financial sector table first); Exploited
+vulnerabilities (this week's KEV additions with EPSS); ATT&CK trend table (technique, this week count,
+Red Canary rank, status); Actor activity; Detection ideas (technique to Sigma/KQL idea, using the
+`sigma-writing` and `kql-writing` skills); Gaps.
 
-Save to `~/briefs/weekly/YYYY-Www.md` before delivering it.
+Save to `~/briefs/weekly/YYYY-Www.md`. Your final response (the Telegram message) is a short summary,
+under 900 characters, plain text: the bottom line, this week's KEV additions, financial-sector victims,
+then the absolute path of the saved file on its own last line as `MEDIA:/home/hermes/briefs/weekly/YYYY-Www.md`
+so the full roundup is attached as a document.

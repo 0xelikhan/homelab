@@ -1,0 +1,46 @@
+{
+  "name": "CAPE_File_Analysis",
+  "version": "1.0",
+  "author": "homelab",
+  "url": "https://github.com/kevoreilly/CAPEv2",
+  "license": "AGPL-V3",
+  "description": "Detonate a file in the lab CAPEv2 sandbox and return its score, malware family, signatures and network indicators",
+  "dataTypeList": [
+    "file"
+  ],
+  "baseConfig": "CAPE",
+  "dockerImage": "lab/cape-analyzer:1.0",
+  "configurationItems": [
+    {
+      "name": "url",
+      "description": "CAPE web URL",
+      "type": "string",
+      "multi": false,
+      "required": true,
+      "defaultValue": "http://cape:8000"
+    },
+    {
+      "name": "timeout_minutes",
+      "description": "How long to wait for the report",
+      "type": "number",
+      "multi": false,
+      "required": true,
+      "defaultValue": 20
+    },
+    {
+      "name": "analysis_seconds",
+      "description": "Detonation time inside the guest",
+      "type": "number",
+      "multi": false,
+      "required": true,
+      "defaultValue": 120
+    }
+  ],
+  "config": {
+    "check_tlp": true,
+    "max_tlp": 2,
+    "check_pap": true,
+    "max_pap": 2,
+    "auto_extract_artifacts": false
+  }
+}
