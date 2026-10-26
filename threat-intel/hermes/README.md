@@ -60,4 +60,10 @@ Edit [skills/pirs.md](skills/pirs.md) to change what the briefs prioritise.
 
 ## Collector
 
-Plain Python, no model, runs every 30 minutes as a separate user. Sources: ransomware.live recent victims, deepdarkCTI list changes, Telegram (text only, once an account is added).
+Plain Python, no model, runs every 30 minutes as a separate user. Writes to `/srv/intel/intel.db`, which Hermes reads.
+
+| Source | What it collects |
+|---|---|
+| ransomware.live | Recent leak-site victims |
+| deepdarkCTI | Changes to its lists of groups, forums and channels |
+| Telegram | Text of new posts from the public channels in `/srv/intel/telegram-channels.txt`, read through each channel's public web preview. No account, no joining, no media, no links followed. Channels with the preview turned off are skipped. A channel's first read keeps only the last 48 hours |
