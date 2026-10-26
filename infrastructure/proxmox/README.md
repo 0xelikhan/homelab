@@ -36,9 +36,43 @@ lab-profile k8s start
 
 Only the cti group starts with the host: pfSense first, then MISP and VM 112, then Hermes. Everything else stays off after a reboot.
 
-## Hookscripts
+## Backups
 
-VMs 100 and 114 run `nsm-mirror-hook.sh` after start to rebuild the port mirror. See [network/nsm-sensor](../../network/nsm-sensor/README.md).
+Proxmox backup jobs (Datacenter > Backup). Snapshot mode, zstd, one copy per VM (`keep-last=1`). Each VM is backed up to a different disk than the one it runs on.
+
+| Job | When | Machines | Backup disk |
+|---|---|---|---|
+| cti-daily-usb1 | daily 03:00 | pfSense, Hermes | sandisk-1tb |
+| cti-daily-usb2 | daily 03:15 | MISP, OpenCTI/TheHive/Cortex | ssd-enclosure |
+| lab-weekly-usb1 | Sunday 04:00 | every other lab VM and LXC | sandisk-1tb |
+| lab-weekly-usb2 | Sunday 04:00 | nsm-sensor | ssd-enclosure |
+
+Restore to a new VM ID with the network unplugged, so the copy cannot clash with the original:
+
+```bash
+qmrestore /mnt/sandisk-1tb/dump/<file>.vma.zst 9100 --storage local-lvm --unique 1
+qm set 9100 --net0 <model>,bridge=vmbr0,link_down=1     # repeat for every NIC, then start
+```
+
+## Hookscript
+
+`lab-hook.sh` (snippets storage) is attached to VMs 100, 101 and 114.
+
+| VM | After start |
+|---|---|
+| 100 pfSense | Rebuilds the NSM port mirror |
+| 114 nsm-sensor | Rebuilds the port mirror, then pushes fresh CTI lists |
+| 101 Wazuh | Pushes fresh CTI lists |
+
+See [network/nsm-sensor](../../network/nsm-sensor/README.md) and [threat-intel/ioc-export](../../threat-intel/ioc-export/README.md).
+
+## Timers on the host
+
+| Timer | Every | What it does |
+|---|---|---|
+| `ioc-export.timer` | 4 hours | [threat-intel/ioc-export](../../threat-intel/ioc-export/README.md) |
+| `lab-health.timer` | 15 minutes | [infrastructure/monitoring](../monitoring/README.md) |
+| `nsm-mirror.service` | at boot | Port mirror for the NSM sensor |
 
 ## Memory
 

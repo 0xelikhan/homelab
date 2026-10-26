@@ -47,6 +47,13 @@ sudo /var/ossec/bin/wazuh-analysisd -t && sudo systemctl restart wazuh-manager
 | 100362 | Honeypot service interaction (login, query) | T1078 | yes |
 | 100371 | Cowrie SSH login attempt | T1110 | yes |
 | 100372 | Command typed into Cowrie | T1059 | yes |
+| 100380 to 100383 | Falco alerts from k8s-01 (Notice 5, Warning 8, Error and above 12) | | yes |
+| 100390 | DC01 connected to a CTI IP (Sysmon EID 3, list `cti-ips`) | T1071 | no |
+| 100391 | DC01 looked up a CTI domain (Sysmon EID 22, list `cti-domains`) | T1071.004 | no |
+| 100392 | Suricata CTI IOC alert from the NSM sensor | T1071 | yes |
+| 100393 | Zeek Intel hit from the NSM sensor | T1071 | no |
+
+The CTI lists (`etc/lists/cti-ips`, `etc/lists/cti-domains`) are written by [ioc-export](../../threat-intel/ioc-export/README.md).
 
 Notes from tuning:
 

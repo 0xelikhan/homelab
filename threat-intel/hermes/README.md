@@ -27,7 +27,9 @@ All three deliver to Telegram. Failures are sent there too.
 | weekly-cti-roundup | Monday 08:00 | weekly roundup |
 | fin-ransomware-flash | every 2 h, only when new financial-sector victims appear | flash note |
 
-Run one now: `hermes cron run <job id>` (from `hermes cron list`). Copies are kept in `~/.hermes/cron/output/` and `~/briefs/`.
+The flash uses `~/.hermes/scripts/fin-victims-monitor.py`. A victim counts as financial when ransomware.live tags its sector as Financial Services. When the sector is missing, the victim name or domain decides.
+
+Run one now: `hermes cron run <job id>` (from `hermes cron list`). Copies are kept in `~/.hermes/cron/output/` and `~/briefs/`. If a Telegram delivery fails, the [health check](../../infrastructure/monitoring/README.md) resends it once.
 
 ## Telegram
 

@@ -31,6 +31,15 @@ The Proxmox host copies pfSense's LAN interface (both directions) to the sensor'
 
 `community-id` is on in both, so a Suricata alert and the matching Zeek `conn.log` line share an ID.
 
+## CTI indicators
+
+Known-bad IPs and domains from MISP and OpenCTI, pushed every 4 hours by [ioc-export](../../threat-intel/ioc-export/README.md).
+
+| Engine | File | Alerts |
+|---|---|---|
+| Suricata | `/etc/suricata/ioc/cti-iprep.list`, `cti-domains.lst`, rules in `cti-iocs.rules` | "CTI IOC" alerts, sids 9100001 to 9100005 |
+| Zeek | `/opt/zeek/share/zeek/site/cti.intel` | `intel.log`, plus `notice.log` (shipped to Wazuh) |
+
 ## Maintenance
 
 | Job | When |

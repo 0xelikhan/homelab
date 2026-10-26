@@ -14,6 +14,7 @@
 | Atomic Red Team | `C:\AtomicRedTeam` | Invoke-AtomicRedTeam module plus the atomics folder. Loads in every PowerShell session |
 | DNS forwarders | DNS Server role | Lets the domain resolve internet names |
 | Wazuh agent channels | agent `ossec.conf` | Security, System, Application, Sysmon and PowerShell operational logs go to Wazuh |
+| Velociraptor client | service `Velociraptor`, `C:\Program Files\Velociraptor` | DFIR collection and hunting from the Velociraptor server |
 
 ## Atomic Red Team
 
@@ -38,4 +39,3 @@ C:\Tools\Sysmon\Sysmon64.exe -c C:\Tools\Sysmon\sysmonconfig.xml
 | Task | How |
 |---|---|
 | Domain build | `dc01-setup.ps1` (OUs, users, GPOs, audit policy) |
-| Velociraptor client | MSI from the Velociraptor GUI (`Server.Utils.CreateMSI`) |

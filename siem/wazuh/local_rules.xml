@@ -168,3 +168,54 @@
   </rule>
 </group>
 
+<group name="falco,kubernetes,">
+  <rule id="100380" level="0">
+    <decoded_as>json</decoded_as>
+    <location>/var/log/falco/events.json</location>
+    <description>Falco event</description>
+  </rule>
+  <rule id="100381" level="5">
+    <if_sid>100380</if_sid>
+    <field name="priority">^Notice$</field>
+    <description>Falco: $(rule)</description>
+  </rule>
+  <rule id="100382" level="8">
+    <if_sid>100380</if_sid>
+    <field name="priority">^Warning$</field>
+    <description>Falco: $(rule)</description>
+  </rule>
+  <rule id="100383" level="12">
+    <if_sid>100380</if_sid>
+    <field name="priority" type="pcre2">^(Error|Critical|Alert|Emergency)$</field>
+    <description>Falco: $(rule)</description>
+  </rule>
+</group>
+
+<group name="cti_ioc,">
+  <rule id="100390" level="12">
+    <if_group>sysmon_event3</if_group>
+    <list field="win.eventdata.destinationIp" lookup="match_key">etc/lists/cti-ips</list>
+    <description>CTI IOC: $(win.system.computer) connected to known-bad IP $(win.eventdata.destinationIp)</description>
+    <mitre><id>T1071</id></mitre>
+  </rule>
+  <rule id="100391" level="12">
+    <if_group>sysmon_event_22</if_group>
+    <list field="win.eventdata.queryName" lookup="match_key">etc/lists/cti-domains</list>
+    <description>CTI IOC: $(win.system.computer) looked up known-bad domain $(win.eventdata.queryName)</description>
+    <mitre><id>T1071.004</id></mitre>
+  </rule>
+  <rule id="100392" level="12">
+    <if_sid>86601</if_sid>
+    <field name="alert.signature_id">^91000\d\d$</field>
+    <description>CTI IOC (network): $(alert.signature) $(src_ip) to $(dest_ip)</description>
+    <mitre><id>T1071</id></mitre>
+  </rule>
+  <rule id="100393" level="12">
+    <decoded_as>json</decoded_as>
+    <location>/opt/zeek/logs/current/notice.log</location>
+    <field name="note">^Intel::Notice$</field>
+    <description>CTI IOC (Zeek intel): $(msg)</description>
+    <mitre><id>T1071</id></mitre>
+  </rule>
+</group>
+

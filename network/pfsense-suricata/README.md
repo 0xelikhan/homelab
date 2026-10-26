@@ -19,4 +19,16 @@ Router, firewall and NAT for every lab VLAN.
 | 50 | Not used. The NSM sensor is managed from the SOC VLAN |
 | 99 | Malware, no internet (FLARE-VM, CAPE) |
 
+## Firewall policy
+
+| VLAN | Can reach |
+|---|---|
+| SOC (10) | Everything, for management |
+| Victim (20) | pfSense DNS and NTP, SOC agent ports, attacker VLAN, internet |
+| Attacker (30) | pfSense DNS and NTP, SOC agent ports, victim and server VLANs, internet |
+| Servers (40) | pfSense DNS and NTP, SOC agent ports, internet |
+| Malware (99) | Nothing |
+
+Everything else between lab VLANs and to the home network is blocked. Rules are tagged `LAB:` in the rule descriptions.
+
 IDS runs on the [NSM sensor](../nsm-sensor/README.md), which gets a copy of all LAN traffic, not on pfSense itself.

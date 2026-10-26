@@ -74,9 +74,10 @@ infrastructure/
   active-directory/      DC01
   kubernetes/            k8s-01
   tailscale/             Remote access
+  monitoring/            Lab health check, Telegram alerts
 siem/                    wazuh, elastalert
 dfir/                    velociraptor, dfir-iris, thehive-cortex
-threat-intel/            opencti, misp, hermes, feeds, n8n-soar
+threat-intel/            opencti, misp, hermes, ioc-export, feeds, n8n-soar
 network/                 pfsense-suricata, nsm-sensor, wireshark
 deception/               opencanary, Azure-HoneyPot, GCP-HoneyPot
 adversary-simulation/    kali tools, metasploit, ad-attacks, attack-tools
