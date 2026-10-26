@@ -3,7 +3,7 @@
 | Item | Value |
 |---|---|
 | Runs on | Proxmox host, `/usr/local/bin/lab-health` |
-| Schedule | `lab-health.timer`, every 15 minutes |
+| Schedule | `lab-health.timer`, every 15 minutes. Skipped for the first 25 minutes after a host boot while VM 112 starts |
 | Alerts | Telegram, through the same bot that sends the CTI briefs |
 | State | `/var/lib/lab-health/state.json` |
 
