@@ -1,0 +1,36 @@
+<!--
+  Tor exit-node detection. Merge into /var/ossec/etc/rules/local_rules.xml.
+  Depends on the CDB list etc/lists/tor-exit-nodes (written by update-tor-exits.sh)
+  being declared in ossec.conf:
+      <ruleset><list>etc/lists/tor-exit-nodes</list></ruleset>
+  Ported from secops-detection-rules threat_intel (Tor exit node contact).
+-->
+<group name="threat_intel,tor,">
+
+  <rule id="100600" level="8">
+    <list field="srcip" lookup="address_match_key">etc/lists/tor-exit-nodes</list>
+    <description>Inbound connection from a Tor exit node</description>
+    <mitre>
+      <id>T1090.003</id>
+    </mitre>
+  </rule>
+
+  <rule id="100601" level="8">
+    <list field="dstip" lookup="address_match_key">etc/lists/tor-exit-nodes</list>
+    <description>Outbound connection to a Tor exit node</description>
+    <mitre>
+      <id>T1090.003</id>
+    </mitre>
+  </rule>
+
+  <!-- Optional: raise severity when a Tor exit touches a sensitive segment.
+       Set the dstip prefix to your victim/server VLAN locally (kept out of the repo).
+  <rule id="100602" level="12">
+    <if_sid>100600</if_sid>
+    <field name="dstip">VICTIM_VLAN_PREFIX.</field>
+    <description>Tor exit node contacting the victim network</description>
+    <mitre><id>T1090.003</id></mitre>
+  </rule>
+  -->
+
+</group>

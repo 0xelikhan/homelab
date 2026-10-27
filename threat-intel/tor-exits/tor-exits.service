@@ -1,0 +1,8 @@
+[Unit]
+Description=Refresh the Tor exit-node CDB list for Wazuh
+After=network-online.target wazuh-manager.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/update-tor-exits.sh

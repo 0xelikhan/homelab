@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh Tor exit-node list every 6 hours
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
