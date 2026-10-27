@@ -1,97 +1,139 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 663" font-family="Segoe UI, Arial, sans-serif">
-<rect x="0" y="0" width="1280" height="663" rx="0" ry="0" fill="#f8fafc" stroke="none" stroke-width="1" />
-<text x="640.0" y="42" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" fill="#0f172a" text-anchor="middle">Home Lab - CTI / SOC range</text>
-<text x="640.0" y="66" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="normal" fill="#64748b" text-anchor="middle">Proxmox VE - pfSense-segmented VLANs - CTI pipeline to Telegram</text>
-<rect x="570.0" y="90" width="140" height="30" rx="15" ry="15" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1" />
-<text x="640.0" y="110" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="600" fill="#475569" text-anchor="middle">Internet</text>
-<line x1="640.0" y1="120" x2="640.0" y2="140" stroke="#94a3b8" stroke-width="2"/>
-<rect x="28" y="140" width="1224" height="36" rx="8" ry="8" fill="#1e293b" stroke="none" stroke-width="1" />
-<text x="640.0" y="163" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#f1f5f9" text-anchor="middle">pfSense  -  router / firewall / NAT  -  per-VLAN rules</text>
-<line x1="115.0" y1="176" x2="115.0" y2="190" stroke="#2563eb" stroke-width="2"/>
-<rect x="17.0" y="190" width="196" height="44" rx="8" ry="8" fill="#2563eb" stroke="none" stroke-width="1" />
-<text x="115.0" y="209" font-family="Segoe UI, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle">VLAN 10 - SOC</text>
-<text x="115.0" y="225" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#e2e8f0" text-anchor="middle">detect / hunt / respond</text>
-<rect x="17.0" y="238" width="196" height="269" rx="8" ry="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.5" />
-<rect x="25.0" y="246" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#2563eb" stroke-width="1" />
-<text x="33.0" y="265" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">Wazuh  (SIEM)</text>
-<rect x="25.0" y="283" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#2563eb" stroke-width="1" />
-<text x="33.0" y="302" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">Velociraptor  (DFIR)</text>
-<rect x="25.0" y="320" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#2563eb" stroke-width="1" />
-<text x="33.0" y="339" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">ElastAlert</text>
-<rect x="25.0" y="357" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#2563eb" stroke-width="1" />
-<text x="33.0" y="376" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">DFIR-IRIS</text>
-<rect x="25.0" y="394" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#2563eb" stroke-width="1" />
-<text x="33.0" y="413" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">n8n  (SOAR)</text>
-<rect x="25.0" y="431" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#2563eb" stroke-width="1" />
-<text x="33.0" y="450" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">NSM sensor  (Zeek/Suricata)</text>
-<rect x="25.0" y="468" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#2563eb" stroke-width="1" />
-<text x="33.0" y="487" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">FMD  (device finder)</text>
-<line x1="325.0" y1="176" x2="325.0" y2="190" stroke="#0891b2" stroke-width="2"/>
-<rect x="227.0" y="190" width="196" height="44" rx="8" ry="8" fill="#0891b2" stroke="none" stroke-width="1" />
-<text x="325.0" y="209" font-family="Segoe UI, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle">VLAN 10 - CTI</text>
-<text x="325.0" y="225" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#e2e8f0" text-anchor="middle">intel / enrich / share</text>
-<rect x="227.0" y="238" width="196" height="269" rx="8" ry="8" fill="#ffffff" stroke="#0891b2" stroke-width="1.5" />
-<rect x="235.0" y="246" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#0891b2" stroke-width="1" />
-<text x="243.0" y="265" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">MISP</text>
-<rect x="235.0" y="283" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#0891b2" stroke-width="1" />
-<text x="243.0" y="302" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">OpenCTI</text>
-<rect x="235.0" y="320" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#0891b2" stroke-width="1" />
-<text x="243.0" y="339" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">TheHive + Cortex</text>
-<rect x="235.0" y="357" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#0891b2" stroke-width="1" />
-<text x="243.0" y="376" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">Hermes Agent</text>
-<rect x="235.0" y="394" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#0891b2" stroke-width="1" />
-<text x="243.0" y="413" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">attack-tools</text>
-<line x1="535.0" y1="176" x2="535.0" y2="190" stroke="#ea580c" stroke-width="2"/>
-<rect x="437.0" y="190" width="196" height="44" rx="8" ry="8" fill="#ea580c" stroke="none" stroke-width="1" />
-<text x="535.0" y="209" font-family="Segoe UI, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle">VLAN 20 - Victim</text>
-<text x="535.0" y="225" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#e2e8f0" text-anchor="middle">targets / deception</text>
-<rect x="437.0" y="238" width="196" height="269" rx="8" ry="8" fill="#ffffff" stroke="#ea580c" stroke-width="1.5" />
-<rect x="445.0" y="246" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#ea580c" stroke-width="1" />
-<text x="453.0" y="265" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">DC01  (Active Directory)</text>
-<rect x="445.0" y="283" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#ea580c" stroke-width="1" />
-<text x="453.0" y="302" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">Metasploitable</text>
-<rect x="445.0" y="320" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#ea580c" stroke-width="1" />
-<text x="453.0" y="339" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">OpenCanary + Cowrie</text>
-<line x1="745.0" y1="176" x2="745.0" y2="190" stroke="#dc2626" stroke-width="2"/>
-<rect x="647.0" y="190" width="196" height="44" rx="8" ry="8" fill="#dc2626" stroke="none" stroke-width="1" />
-<text x="745.0" y="209" font-family="Segoe UI, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle">VLAN 30 - Attacker</text>
-<text x="745.0" y="225" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#e2e8f0" text-anchor="middle">offensive</text>
-<rect x="647.0" y="238" width="196" height="269" rx="8" ry="8" fill="#ffffff" stroke="#dc2626" stroke-width="1.5" />
-<rect x="655.0" y="246" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#dc2626" stroke-width="1" />
-<text x="663.0" y="265" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">Kali  (attack box)</text>
-<line x1="955.0" y1="176" x2="955.0" y2="190" stroke="#16a34a" stroke-width="2"/>
-<rect x="857.0" y="190" width="196" height="44" rx="8" ry="8" fill="#16a34a" stroke="none" stroke-width="1" />
-<text x="955.0" y="209" font-family="Segoe UI, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle">VLAN 40 - Servers</text>
-<text x="955.0" y="225" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#e2e8f0" text-anchor="middle">app / container targets</text>
-<rect x="857.0" y="238" width="196" height="269" rx="8" ry="8" fill="#ffffff" stroke="#16a34a" stroke-width="1.5" />
-<rect x="865.0" y="246" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#16a34a" stroke-width="1" />
-<text x="873.0" y="265" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">web-01  (DVWA)</text>
-<rect x="865.0" y="283" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#16a34a" stroke-width="1" />
-<text x="873.0" y="302" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">k8s-01  (MicroK8s + Falco)</text>
-<line x1="1165.0" y1="176" x2="1165.0" y2="190" stroke="#7c3aed" stroke-width="2"/>
-<rect x="1067.0" y="190" width="196" height="44" rx="8" ry="8" fill="#7c3aed" stroke="none" stroke-width="1" />
-<text x="1165.0" y="209" font-family="Segoe UI, Arial, sans-serif" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle">VLAN 99 - Malware</text>
-<text x="1165.0" y="225" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#e2e8f0" text-anchor="middle">isolated - NO internet</text>
-<rect x="1067.0" y="238" width="196" height="269" rx="8" ry="8" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5" />
-<rect x="1075.0" y="246" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#7c3aed" stroke-width="1" />
-<text x="1083.0" y="265" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">FLARE-VM</text>
-<rect x="1075.0" y="283" width="180" height="30" rx="6" ry="6" fill="#f1f5f9" stroke="#7c3aed" stroke-width="1" />
-<text x="1083.0" y="302" font-family="Segoe UI, Arial, sans-serif" font-size="11.5" font-weight="500" fill="#0f172a" text-anchor="start">CAPEv2 sandbox</text>
-<text x="640.0" y="535" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle">CTI pipeline</text>
-<rect x="87.0" y="549" width="236" height="60" rx="10" ry="10" fill="#ecfeff" stroke="#0891b2" stroke-width="1.5" />
-<text x="205.0" y="573" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#0e7490" text-anchor="middle">Feeds</text>
-<text x="205.0" y="593" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#155e75" text-anchor="middle">abuse.ch / OTX / RSS / KEV</text>
-<path d="M331.0 579 l38 0 l-8 -6 m8 6 l-8 6" stroke="#0891b2" stroke-width="2.5" fill="none"/>
-<rect x="377.0" y="549" width="236" height="60" rx="10" ry="10" fill="#ecfeff" stroke="#0891b2" stroke-width="1.5" />
-<text x="495.0" y="573" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#0e7490" text-anchor="middle">MISP + OpenCTI</text>
-<text x="495.0" y="593" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#155e75" text-anchor="middle">correlate</text>
-<path d="M621.0 579 l38 0 l-8 -6 m8 6 l-8 6" stroke="#0891b2" stroke-width="2.5" fill="none"/>
-<rect x="667.0" y="549" width="236" height="60" rx="10" ry="10" fill="#ecfeff" stroke="#0891b2" stroke-width="1.5" />
-<text x="785.0" y="573" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#0e7490" text-anchor="middle">Hermes Agent</text>
-<text x="785.0" y="593" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#155e75" text-anchor="middle">enrich + summarize</text>
-<path d="M911.0 579 l38 0 l-8 -6 m8 6 l-8 6" stroke="#0891b2" stroke-width="2.5" fill="none"/>
-<rect x="957.0" y="549" width="236" height="60" rx="10" ry="10" fill="#ecfeff" stroke="#0891b2" stroke-width="1.5" />
-<text x="1075.0" y="573" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#0e7490" text-anchor="middle">Telegram</text>
-<text x="1075.0" y="593" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#155e75" text-anchor="middle">daily / weekly briefs</text>
-<text x="640.0" y="645" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="normal" fill="#94a3b8" text-anchor="middle">No IPs or hostnames shown. lab-profile groups start/stop zones to fit 32 GB RAM.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 799" font-family="'Segoe UI',Helvetica,Arial,sans-serif">
+<rect x="0.0" y="0.0" width="1400.0" height="799.0" rx="0" fill="#0b0f17" stroke="none" stroke-width="1"/>
+<text x="34.0" y="52.0" font-size="26" font-weight="700" fill="#e5edf5" text-anchor="start">Home Lab</text>
+<text x="176.0" y="52.0" font-size="26" font-weight="300" fill="#8aa0b6" text-anchor="start">CTI / SOC range</text>
+<text x="34.0" y="76.0" font-size="13" font-weight="400" fill="#8aa0b6" text-anchor="start">Proxmox VE · pfSense-segmented VLANs · threat-intel pipeline to Telegram</text>
+<rect x="638.0" y="100.0" width="124.0" height="30.0" rx="15" fill="#1b2432" stroke="#33415a" stroke-width="1"/>
+<text x="700.0" y="120.0" font-size="12.5" font-weight="600" fill="#8aa0b6" text-anchor="middle">Internet</text>
+<line x1="700.0" y1="130" x2="700.0" y2="150" stroke="#33415a" stroke-width="1.5"/>
+<rect x="510.0" y="150.0" width="380.0" height="50.0" rx="10" fill="#10243180" stroke="#22d3ee" stroke-width="1.5"/>
+<circle cx="526.0" cy="166.0" r="3.5" fill="#22c55e"/>
+<text x="540.0" y="170.0" font-size="14" font-weight="700" fill="#e5edf5" text-anchor="start">pfSense</text>
+<text x="540.0" y="188.0" font-size="11.5" font-weight="400" fill="#8aa0b6" text-anchor="start">router · firewall · NAT · per-VLAN rules</text>
+<path d="M700 200 C 700 225, 138 225, 138 250" stroke="#22d3ee" stroke-opacity="0.45" stroke-width="1.5" fill="none"/>
+<rect x="34.0" y="250.0" width="208.7" height="267.0" rx="12" fill="#0e1420" stroke="#22d3ee" stroke-width="1.4" stroke-opacity="0.4"/>
+<rect x="34.0" y="250" width="4" height="267.0" rx="2" fill="#22d3ee"/>
+<text x="48.0" y="275.0" font-size="12.5" font-weight="700" fill="#22d3ee" text-anchor="start">VLAN 10 · CTI</text>
+<text x="230.7" y="275.0" font-size="9.5" font-weight="400" fill="#22c55e" text-anchor="end">always on</text>
+<rect x="44.0" y="290.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="53.0" y="301.0" width="12.0" height="12.0" rx="3" fill="#22d3ee" stroke="none" stroke-width="1"/>
+<text x="74.0" y="312.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">MISP</text>
+<circle cx="222.7" cy="307.0" r="3.5" fill="#22c55e"/>
+<rect x="44.0" y="333.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="53.0" y="344.0" width="12.0" height="12.0" rx="3" fill="#22d3ee" stroke="none" stroke-width="1"/>
+<text x="74.0" y="355.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">OpenCTI</text>
+<circle cx="222.7" cy="350.0" r="3.5" fill="#22c55e"/>
+<rect x="44.0" y="376.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="53.0" y="387.0" width="12.0" height="12.0" rx="3" fill="#22d3ee" stroke="none" stroke-width="1"/>
+<text x="74.0" y="398.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">TheHive + Cortex</text>
+<circle cx="222.7" cy="393.0" r="3.5" fill="#22c55e"/>
+<rect x="44.0" y="419.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="53.0" y="430.0" width="12.0" height="12.0" rx="3" fill="#22d3ee" stroke="none" stroke-width="1"/>
+<text x="74.0" y="441.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">Hermes Agent</text>
+<circle cx="222.7" cy="436.0" r="3.5" fill="#22c55e"/>
+<rect x="44.0" y="462.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="53.0" y="473.0" width="12.0" height="12.0" rx="3" fill="#22d3ee" stroke="none" stroke-width="1"/>
+<text x="74.0" y="484.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">attack-tools</text>
+<circle cx="222.7" cy="479.0" r="3.5" fill="#22c55e"/>
+<path d="M700 200 C 700 225, 363 225, 363 250" stroke="#3b82f6" stroke-opacity="0.45" stroke-width="1.5" fill="none"/>
+<rect x="258.7" y="250.0" width="208.7" height="353.0" rx="12" fill="#0e1420" stroke="#3b82f6" stroke-width="1.4" stroke-opacity="0.4"/>
+<rect x="258.7" y="250" width="4" height="353.0" rx="2" fill="#3b82f6"/>
+<text x="272.7" y="275.0" font-size="12.5" font-weight="700" fill="#3b82f6" text-anchor="start">VLAN 10 · SOC</text>
+<rect x="268.7" y="290.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="277.7" y="301.0" width="12.0" height="12.0" rx="3" fill="#3b82f6" stroke="none" stroke-width="1"/>
+<text x="298.7" y="312.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">Wazuh</text>
+<circle cx="447.3" cy="307.0" r="3.5" fill="#f59e0b"/>
+<rect x="268.7" y="333.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="277.7" y="344.0" width="12.0" height="12.0" rx="3" fill="#3b82f6" stroke="none" stroke-width="1"/>
+<text x="298.7" y="355.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">Velociraptor</text>
+<circle cx="447.3" cy="350.0" r="3.5" fill="#f59e0b"/>
+<rect x="268.7" y="376.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="277.7" y="387.0" width="12.0" height="12.0" rx="3" fill="#3b82f6" stroke="none" stroke-width="1"/>
+<text x="298.7" y="398.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">ElastAlert</text>
+<circle cx="447.3" cy="393.0" r="3.5" fill="#f59e0b"/>
+<rect x="268.7" y="419.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="277.7" y="430.0" width="12.0" height="12.0" rx="3" fill="#3b82f6" stroke="none" stroke-width="1"/>
+<text x="298.7" y="441.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">DFIR-IRIS</text>
+<circle cx="447.3" cy="436.0" r="3.5" fill="#f59e0b"/>
+<rect x="268.7" y="462.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="277.7" y="473.0" width="12.0" height="12.0" rx="3" fill="#3b82f6" stroke="none" stroke-width="1"/>
+<text x="298.7" y="484.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">n8n (SOAR)</text>
+<circle cx="447.3" cy="479.0" r="3.5" fill="#f59e0b"/>
+<rect x="268.7" y="505.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="277.7" y="516.0" width="12.0" height="12.0" rx="3" fill="#3b82f6" stroke="none" stroke-width="1"/>
+<text x="298.7" y="527.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">NSM sensor</text>
+<circle cx="447.3" cy="522.0" r="3.5" fill="#f59e0b"/>
+<rect x="268.7" y="548.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="277.7" y="559.0" width="12.0" height="12.0" rx="3" fill="#3b82f6" stroke="none" stroke-width="1"/>
+<text x="298.7" y="570.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">FMD</text>
+<circle cx="447.3" cy="565.0" r="3.5" fill="#f59e0b"/>
+<path d="M700 200 C 700 225, 588 225, 588 250" stroke="#f59e0b" stroke-opacity="0.45" stroke-width="1.5" fill="none"/>
+<rect x="483.3" y="250.0" width="208.7" height="181.0" rx="12" fill="#0e1420" stroke="#f59e0b" stroke-width="1.4" stroke-opacity="0.4"/>
+<rect x="483.3" y="250" width="4" height="181.0" rx="2" fill="#f59e0b"/>
+<text x="497.3" y="275.0" font-size="12.5" font-weight="700" fill="#f59e0b" text-anchor="start">VLAN 20 · Victim</text>
+<rect x="493.3" y="290.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="502.3" y="301.0" width="12.0" height="12.0" rx="3" fill="#f59e0b" stroke="none" stroke-width="1"/>
+<text x="523.3" y="312.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">DC01 (AD)</text>
+<circle cx="672.0" cy="307.0" r="3.5" fill="#f59e0b"/>
+<rect x="493.3" y="333.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="502.3" y="344.0" width="12.0" height="12.0" rx="3" fill="#f59e0b" stroke="none" stroke-width="1"/>
+<text x="523.3" y="355.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">Metasploitable</text>
+<circle cx="672.0" cy="350.0" r="3.5" fill="#f59e0b"/>
+<rect x="493.3" y="376.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="502.3" y="387.0" width="12.0" height="12.0" rx="3" fill="#f59e0b" stroke="none" stroke-width="1"/>
+<text x="523.3" y="398.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">OpenCanary + Cowrie</text>
+<circle cx="672.0" cy="393.0" r="3.5" fill="#f59e0b"/>
+<path d="M700 200 C 700 225, 812 225, 812 250" stroke="#ef4444" stroke-opacity="0.45" stroke-width="1.5" fill="none"/>
+<rect x="708.0" y="250.0" width="208.7" height="95.0" rx="12" fill="#0e1420" stroke="#ef4444" stroke-width="1.4" stroke-opacity="0.4"/>
+<rect x="708.0" y="250" width="4" height="95.0" rx="2" fill="#ef4444"/>
+<text x="722.0" y="275.0" font-size="12.5" font-weight="700" fill="#ef4444" text-anchor="start">VLAN 30 · Attacker</text>
+<rect x="718.0" y="290.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="727.0" y="301.0" width="12.0" height="12.0" rx="3" fill="#ef4444" stroke="none" stroke-width="1"/>
+<text x="748.0" y="312.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">Kali</text>
+<circle cx="896.7" cy="307.0" r="3.5" fill="#f59e0b"/>
+<path d="M700 200 C 700 225, 1037 225, 1037 250" stroke="#22c55e" stroke-opacity="0.45" stroke-width="1.5" fill="none"/>
+<rect x="932.7" y="250.0" width="208.7" height="138.0" rx="12" fill="#0e1420" stroke="#22c55e" stroke-width="1.4" stroke-opacity="0.4"/>
+<rect x="932.7" y="250" width="4" height="138.0" rx="2" fill="#22c55e"/>
+<text x="946.7" y="275.0" font-size="12.5" font-weight="700" fill="#22c55e" text-anchor="start">VLAN 40 · Servers</text>
+<rect x="942.7" y="290.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="951.7" y="301.0" width="12.0" height="12.0" rx="3" fill="#22c55e" stroke="none" stroke-width="1"/>
+<text x="972.7" y="312.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">web-01 (DVWA)</text>
+<circle cx="1121.3" cy="307.0" r="3.5" fill="#f59e0b"/>
+<rect x="942.7" y="333.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="951.7" y="344.0" width="12.0" height="12.0" rx="3" fill="#22c55e" stroke="none" stroke-width="1"/>
+<text x="972.7" y="355.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">k8s-01 (MicroK8s)</text>
+<circle cx="1121.3" cy="350.0" r="3.5" fill="#f59e0b"/>
+<path d="M700 200 C 700 225, 1262 225, 1262 250" stroke="#a855f7" stroke-opacity="0.45" stroke-width="1.5" fill="none"/>
+<rect x="1157.3" y="250.0" width="208.7" height="138.0" rx="12" fill="#0e1420" stroke="#a855f7" stroke-width="1.4" stroke-opacity="0.4"/>
+<rect x="1157.3" y="250" width="4" height="138.0" rx="2" fill="#a855f7"/>
+<text x="1171.3" y="275.0" font-size="12.5" font-weight="700" fill="#a855f7" text-anchor="start">VLAN 99 · Malware</text>
+<rect x="1167.3" y="290.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="1176.3" y="301.0" width="12.0" height="12.0" rx="3" fill="#a855f7" stroke="none" stroke-width="1"/>
+<text x="1197.3" y="312.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">FLARE-VM</text>
+<circle cx="1346.0" cy="307.0" r="3.5" fill="#f59e0b"/>
+<rect x="1167.3" y="333.0" width="188.7" height="34.0" rx="7" fill="#141b27" stroke="#243042" stroke-width="1"/>
+<rect x="1176.3" y="344.0" width="12.0" height="12.0" rx="3" fill="#a855f7" stroke="none" stroke-width="1"/>
+<text x="1197.3" y="355.0" font-size="11.5" font-weight="500" fill="#e5edf5" text-anchor="start">CAPEv2</text>
+<circle cx="1346.0" cy="350.0" r="3.5" fill="#f59e0b"/>
+<text x="34.0" y="655.0" font-size="15" font-weight="700" fill="#e5edf5" text-anchor="start">CTI pipeline</text>
+<rect x="34.0" y="669.0" width="297.0" height="62.0" rx="10" fill="#0e2230" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="182.5" y="697.0" font-size="14" font-weight="700" fill="#67e8f9" text-anchor="middle">Feeds</text>
+<text x="182.5" y="717.0" font-size="11" font-weight="400" fill="#8aa0b6" text-anchor="middle">abuse.ch · OTX · RSS · KEV</text>
+<path d="M339 700 l32 0 l-7 -5 m7 5 l-7 5" stroke="#22d3ee" stroke-width="2.2" fill="none"/>
+<rect x="379.0" y="669.0" width="297.0" height="62.0" rx="10" fill="#0e2230" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="527.5" y="697.0" font-size="14" font-weight="700" fill="#67e8f9" text-anchor="middle">MISP + OpenCTI</text>
+<text x="527.5" y="717.0" font-size="11" font-weight="400" fill="#8aa0b6" text-anchor="middle">correlate</text>
+<path d="M684 700 l32 0 l-7 -5 m7 5 l-7 5" stroke="#22d3ee" stroke-width="2.2" fill="none"/>
+<rect x="724.0" y="669.0" width="297.0" height="62.0" rx="10" fill="#0e2230" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="872.5" y="697.0" font-size="14" font-weight="700" fill="#67e8f9" text-anchor="middle">Hermes</text>
+<text x="872.5" y="717.0" font-size="11" font-weight="400" fill="#8aa0b6" text-anchor="middle">enrich + summarize</text>
+<path d="M1029 700 l32 0 l-7 -5 m7 5 l-7 5" stroke="#22d3ee" stroke-width="2.2" fill="none"/>
+<rect x="1069.0" y="669.0" width="297.0" height="62.0" rx="10" fill="#0e2230" stroke="#22d3ee" stroke-width="1.4"/>
+<text x="1217.5" y="697.0" font-size="14" font-weight="700" fill="#67e8f9" text-anchor="middle">Telegram</text>
+<text x="1217.5" y="717.0" font-size="11" font-weight="400" fill="#8aa0b6" text-anchor="middle">daily / weekly briefs</text>
+<circle cx="40.0" cy="761.0" r="3.5" fill="#22c55e"/>
+<text x="52.0" y="765.0" font-size="11" font-weight="400" fill="#8aa0b6" text-anchor="start">always on (cti group)</text>
+<circle cx="224.0" cy="761.0" r="3.5" fill="#f59e0b"/>
+<text x="236.0" y="765.0" font-size="11" font-weight="400" fill="#8aa0b6" text-anchor="start">on-demand (started per lab-profile group)</text>
+<text x="1366.0" y="765.0" font-size="11" font-weight="400" fill="#5a6b7e" text-anchor="end">No IPs or hostnames shown · generated from generate_map.py</text>
 </svg>
