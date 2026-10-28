@@ -42,14 +42,18 @@ leak/Telegram sources (observe-only; never log in, visit .onion, or download).
 
 Use `/cti-orchestrator` as the router. For each significant finding, invoke the skills it points to:
 
-- IOCs (IP / domain / hash / URL): `/ioc-enrichment-workflow`, then the relevant `lookup-*` skills —
-  `/lookup-virustotal`, `/lookup-shodan`, `/lookup-greynoise`, `/lookup-abuseipdb`, `/lookup-otx`,
-  `/lookup-urlscan`, `/lookup-censys`, `/lookup-opencti`, `/lookup-misp`. Pivot with `/indicator-pivoting`.
+- IOCs (IP / domain / hash / URL): `/ioc-enrichment-workflow`, then the free-tier-generous lookups only —
+  `/lookup-virustotal`, `/lookup-abuseipdb`, `/lookup-otx`, `/lookup-urlscan`, plus the local/unlimited
+  `/lookup-opencti`, `/lookup-misp`, `/lookup-ransomwarelive`. Pivot with `/indicator-pivoting`.
+  **Do not use `/lookup-shodan`, `/lookup-censys` or `/lookup-greynoise`** — their free tiers are too small.
 - Full investigations on the most significant indicators: `/ip-investigation`, `/domain-investigation`,
   `/hash-investigation`, `/url-investigation`.
 - Export the day's vetted IOCs with `/ioc-export`.
 
-Keep enrichment read-only and within each API's rate limits.
+Keep enrichment read-only. **Volume cap:** enrich at most the ~25 most significant IOCs per run.
+Reuse cache and pace VirusTotal (free is ~4/min, 500/day). AbuseIPDB (1,000/day), OTX and URLScan are
+generous, and OpenCTI/MISP/ransomware.live are local with no limit. This keeps a once-daily brief well
+within free limits.
 
 ## 3. Assess (apply the deep-dive skills that match)
 

@@ -32,11 +32,16 @@ observe-only.
 
 ## 2. Enrich and investigate (the week's most significant indicators and entities)
 
-Route through `/cti-orchestrator`: `/ioc-enrichment-workflow` with the `lookup-*` skills
-(`/lookup-virustotal`, `/lookup-shodan`, `/lookup-greynoise`, `/lookup-abuseipdb`, `/lookup-otx`,
-`/lookup-urlscan`, `/lookup-censys`, `/lookup-opencti`, `/lookup-misp`), `/indicator-pivoting`, and full
+Route through `/cti-orchestrator`: `/ioc-enrichment-workflow` with the free-tier-generous lookups only
+(`/lookup-virustotal`, `/lookup-abuseipdb`, `/lookup-otx`, `/lookup-urlscan`, plus local/unlimited
+`/lookup-opencti`, `/lookup-misp`, `/lookup-ransomwarelive`). **Do not use `/lookup-shodan`,
+`/lookup-censys` or `/lookup-greynoise`** (free tiers too small). `/indicator-pivoting`, and full
 `/ip-investigation` / `/domain-investigation` / `/hash-investigation` / `/url-investigation` on the top
 items. Export the week's vetted IOCs with `/ioc-export`.
+
+**Volume cap:** enrich at most the ~40 most significant IOCs for the week. Reuse cache and pace
+VirusTotal (4/min, 500/day); AbuseIPDB, OTX and URLScan are generous; OpenCTI/MISP/ransomware.live
+are local with no limit.
 
 ## 3. Assess (deep-dives that match the week's activity)
 
