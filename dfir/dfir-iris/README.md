@@ -6,6 +6,4 @@
 | Web UI | port 443 |
 | Runs as | docker compose (app, worker, nginx, Postgres, RabbitMQ) |
 
-Forensics-first case management. TheHive handles IR workflow, IRIS holds forensic case notes, evidence and timelines.
-
 Has a Wazuh agent (auditd) and a Velociraptor client.

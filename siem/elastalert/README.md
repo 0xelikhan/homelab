@@ -7,8 +7,6 @@
 | Service | `elastalert.service`. A drop-in (`wait-indexer.conf`) makes it wait up to 5 minutes for the Wazuh indexer at start |
 | Reads from | Wazuh indexer |
 
-Runs alert rules against the Wazuh indexer every minute.
-
 | Rule | What it matches |
 |---|---|
 | `high_severity_wazuh.yaml` | High severity Wazuh alerts |

@@ -8,8 +8,6 @@
 | Version | Hermes Agent (Nous Research), stable channel |
 | Model | Anthropic Claude Sonnet |
 
-Reads OpenCTI, MISP and Cortex with read-only accounts, plus a local collector database, and writes daily and weekly CTI briefs.
-
 ```bash
 pct enter 120
 su - hermes

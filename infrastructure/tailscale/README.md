@@ -1,7 +1,5 @@
 # Tailscale
 
-Tailscale runs on the Proxmox host for remote access to the Proxmox UI and the lab.
-
 The host advertises these lab routes (approved in the Tailscale admin console):
 
 | Route | VLAN |

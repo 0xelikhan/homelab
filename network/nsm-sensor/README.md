@@ -9,8 +9,6 @@
 | Suricata | 8.0, ET Open rules, JA3 and JA4 on TLS, JA4 on QUIC |
 | Zeek | 8.0 with the FoxIO JA4+ package, JSON logs |
 
-Watches every packet that crosses pfSense's LAN trunk: traffic between lab VLANs and from the lab to the internet.
-
 ## How traffic gets here
 
 The Proxmox host copies pfSense's LAN interface (both directions) to the sensor's capture NIC with `tc mirred`. Packets keep their VLAN tags.

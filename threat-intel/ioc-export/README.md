@@ -7,8 +7,6 @@
 | Sources | MISP and OpenCTI, read-only accounts |
 | Output | `/var/lib/ioc-export/` on the host |
 
-Turns threat intel into detections. Pulls network indicators from the last 30 days and pushes them to the sensors and the SIEM.
-
 ## What it pulls
 
 | Source | What |

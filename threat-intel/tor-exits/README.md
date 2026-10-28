@@ -1,8 +1,7 @@
 # Tor exit-node detection
 
-Flags connections to or from Tor exit nodes in Wazuh. Ported from the
-[secops-detection-rules](https://github.com/0xelikhan/secops-detection-rules) `threat_intel`
-YARA-L rules (which target Google SecOps); this reimplements the useful logic for the lab's
+Ported from the [secops-detection-rules](https://github.com/0xelikhan/secops-detection-rules) `threat_intel`
+YARA-L rules (which target Google SecOps) and reimplemented for the lab's
 Wazuh + CDB stack, alongside the MISP/OpenCTI IOC lists from [ioc-export](../ioc-export/README.md).
 
 ## What it does

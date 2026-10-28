@@ -8,8 +8,6 @@
 | Boots | first |
 | Web UI | HTTPS (http redirects). Admin over SSH with a key |
 
-Router, firewall and NAT for every lab VLAN.
-
 | VLAN | Purpose |
 |---|---|
 | 10 | SOC tools |

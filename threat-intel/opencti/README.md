@@ -7,7 +7,7 @@
 | Version | 7.261019.0 |
 | Runs as | docker compose: platform, Elasticsearch, Redis, RabbitMQ, Silo (MinIO replacement), 2 workers, connectors |
 
-Main threat intel knowledge base. STIX 2.1, ATT&CK mapped. TheHive and Cortex run on the same VM.
+TheHive and Cortex run on the same VM.
 
 ## Connectors
 

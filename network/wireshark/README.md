@@ -1,7 +1,5 @@
 # Wireshark
 
-Not a VM. Used from Kali (`wireshark`, `tcpdump`) or the workstation, and on PCAPs exported from Security Onion once it is installed.
-
 ## Display filters
 
 | Filter | Finds |

@@ -7,8 +7,6 @@
 | Web UI | port 443 |
 | Version | 4.14.5 all-in-one (manager, indexer, dashboard) |
 
-Main SIEM. Everything comes in through agents.
-
 ## Agents
 
 | Agent | Sends |

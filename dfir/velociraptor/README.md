@@ -7,8 +7,6 @@
 | Web UI | port 8889 |
 | Version | 0.76.1 |
 
-DFIR collection and hunting (VQL artifacts, YARA hunts) across the lab.
-
 ## Clients
 
 | Machines | Client |

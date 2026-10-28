@@ -4,8 +4,6 @@
 |---|---|
 | VM | 118 `opencanary`, VLAN 20, 1 core, 1 GB RAM |
 
-Honeypots in the victim VLAN. Anything touching them is suspicious by definition.
-
 | Service | Provided by |
 |---|---|
 | SSH (fake shell) | Cowrie (pinned to v2.9.20, last release for Python 3.10) |

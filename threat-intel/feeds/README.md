@@ -1,7 +1,5 @@
 # Feeds
 
-RSS and Atom feeds loaded into OpenCTI RSS ingestion. Each post becomes an OpenCTI report.
-
 | File | What it is |
 |---|---|
 | [feeds.csv](feeds.csv) | 164 verified feeds: name, category, feed URL |

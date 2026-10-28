@@ -6,8 +6,6 @@
 | Web UI | port 5678 |
 | Runs as | Docker container (`n8nio/n8n`) |
 
-SOAR and workflow automation.
-
 Has a Wazuh agent (auditd) and a Velociraptor client.
 
 ## Ideas to wire up

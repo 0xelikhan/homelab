@@ -6,7 +6,7 @@
 | Web UI | port 443 |
 | Version | MISP 2.5 via official misp-docker |
 
-Feed aggregation and sharing. Containers: misp-core, misp-modules, nginx, mariadb, valkey, mail.
+Containers: misp-core, misp-modules, nginx, mariadb, valkey, mail.
 
 ## Feeds (23 enabled)
 

@@ -1,6 +1,6 @@
-# Cloud Threat Luring: T-Pot 24.04.1 on Google Cloud Platform
+# T-Pot honeypot on Google Cloud Platform
 
-Welcome to my honeypot analysis project. In this guide, I'll walk you through deploying and configuring a T-Pot honeypot on Google Cloud Platform (GCP). The goal is to observe attacker playbooks in real traffic, capture and parse malicious payloads at scale, and automate infrastructure deployment and monitoring via infrastructure-as-code.
+T-Pot 24.04.1 on a GCP VM, exposed to the internet to capture and analyse real attack traffic.
 
 ## Table of Contents
 

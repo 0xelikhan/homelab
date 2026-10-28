@@ -6,7 +6,7 @@
 | Group | `purple` and `attack` |
 | Network | SOC VLAN |
 
-Planning and coverage tools for purple team work. A landing page on port 80 links to all three.
+A landing page on port 80 links to all three.
 
 | Tool | Version | Port | What it does |
 |---|---|---|---|
