@@ -4,6 +4,10 @@ Proxmox VE 9.2 on a Lenovo ThinkCentre M710q (4 cores, 32 GB RAM). Lab networks 
 
 ![Home lab map](architecture/lab-map.png)
 
+Live view of the same lab, segmented by VLAN, in [Homelable](https://github.com/Pouzor/homelable):
+
+![Lab topology in Homelable](architecture/homelable-canvas.png)
+
 ## Machines
 
 Group = the `lab-profile` group that starts and stops it. See [infrastructure/proxmox](infrastructure/proxmox/README.md).
