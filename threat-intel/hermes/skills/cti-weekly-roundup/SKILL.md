@@ -30,17 +30,27 @@ read-only, nothing TLP:RED or AMBER+STRICT, no .onion or forum access, no file d
 Use `/osint-methodology` and `/darkweb-collection` to guide collection and keep leak/Telegram sources
 observe-only.
 
-## 2. Enrich and investigate (the week's most significant indicators and entities)
+## 2. Enrich and investigate (MANDATORY — the week's most significant indicators and entities)
 
-Route through `/cti-orchestrator`: `/ioc-enrichment-workflow` with the free-tier-generous lookups only
-(`/lookup-virustotal`, `/lookup-abuseipdb`, `/lookup-otx`, `/lookup-urlscan`, plus local/unlimited
-`/lookup-opencti`, `/lookup-misp`, `/lookup-ransomwarelive`). **Do not use `/lookup-shodan`,
-`/lookup-censys` or `/lookup-greynoise`** (free tiers too small). `/indicator-pivoting`, and full
+Enrichment is required, not optional. Actually run the lookup CLIs from the repo root (`~/cti-skills`);
+do not build the roundup from titles and labels alone. Enrich **at least the top 20, up to ~40** of the
+week's indicators (OpenCTI score >= 70, plus IOCs named in reports and ransomware / Telegram posts):
+
+```bash
+node tools/clis/virustotal.js ip|domain|hash|url <value>   # detection ratio + verdict
+node tools/clis/abuseipdb.js  ip <ip>                       # abuse confidence score
+node tools/clis/otx.js        ip|domain|hash|url <value>    # OTX pulses
+node tools/clis/urlscan.js    domain <domain>               # urlscan (for a URL: url "<url>")
+```
+
+Local context (no rate limit): `python3 tools/clis/opencti.py ...`, `python3 tools/clis/misp.py ...`,
+`python3 tools/clis/ransomwarelive.py ...`. Pivot on strong hits (`/indicator-pivoting`) and run a full
 `/ip-investigation` / `/domain-investigation` / `/hash-investigation` / `/url-investigation` on the top
-items. Export the week's vetted IOCs with `/ioc-export`.
+items. Record each result inline (VT ratio + verdict, AbuseIPDB score, OTX pulses); mark any you could
+not enrich as `not enriched (<reason>)`. Export the week's vetted IOCs with `/ioc-export`.
 
-**Volume cap:** enrich at most the ~40 most significant IOCs for the week. Reuse cache and pace
-VirusTotal (4/min, 500/day); AbuseIPDB, OTX and URLScan are generous; OpenCTI/MISP/ransomware.live
+**Do not run** `tools/clis/shodan.*`, `tools/clis/greynoise.*` or censys — free tiers too small.
+Pace VirusTotal (4/min, 500/day); AbuseIPDB, OTX and URLScan are generous; OpenCTI/MISP/ransomware.live
 are local with no limit.
 
 ## 3. Assess (deep-dives that match the week's activity)

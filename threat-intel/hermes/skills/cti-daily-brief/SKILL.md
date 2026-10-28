@@ -38,22 +38,36 @@ Run from the cti-skills repo root (`~/cti-skills`):
 Let `/osint-methodology` and `/darkweb-collection` guide what to pull and how to handle untrusted
 leak/Telegram sources (observe-only; never log in, visit .onion, or download).
 
-## 2. Enrich (route every notable indicator and entity)
+## 2. Enrich (MANDATORY — do not write the brief from titles alone)
 
-Use `/cti-orchestrator` as the router. For each significant finding, invoke the skills it points to:
+Enrichment is required, not optional. A brief whose IOCs were never looked up is incomplete. You must
+actually run the lookup CLIs below from the repo root (`~/cti-skills`); reading report titles and labels
+is not enrichment.
 
-- IOCs (IP / domain / hash / URL): `/ioc-enrichment-workflow`, then the free-tier-generous lookups only —
-  `/lookup-virustotal`, `/lookup-abuseipdb`, `/lookup-otx`, `/lookup-urlscan`, plus the local/unlimited
-  `/lookup-opencti`, `/lookup-misp`, `/lookup-ransomwarelive`. Pivot with `/indicator-pivoting`.
-  **Do not use `/lookup-shodan`, `/lookup-censys` or `/lookup-greynoise`** — their free tiers are too small.
-- Full investigations on the most significant indicators: `/ip-investigation`, `/domain-investigation`,
-  `/hash-investigation`, `/url-investigation`.
-- Export the day's vetted IOCs with `/ioc-export`.
+Pick the most significant indicators from the collection phase (OpenCTI indicators with score >= 70, plus
+IPs / domains / hashes / URLs named in the reports and the ransomware / Telegram posts). Enrich **at least
+the top 10, up to ~25**. For each, run the matching command:
 
-Keep enrichment read-only. **Volume cap:** enrich at most the ~25 most significant IOCs per run.
-Reuse cache and pace VirusTotal (free is ~4/min, 500/day). AbuseIPDB (1,000/day), OTX and URLScan are
-generous, and OpenCTI/MISP/ransomware.live are local with no limit. This keeps a once-daily brief well
-within free limits.
+```bash
+node tools/clis/virustotal.js ip|domain|hash|url <value>   # detection ratio + verdict
+node tools/clis/abuseipdb.js  ip <ip>                       # abuse confidence score
+node tools/clis/otx.js        ip|domain|hash|url <value>    # OTX pulses
+node tools/clis/urlscan.js    domain <domain>               # urlscan (for a URL: url "<url>")
+```
+
+Local context (no rate limit, use freely): `python3 tools/clis/opencti.py ...`,
+`python3 tools/clis/misp.py ...`, `python3 tools/clis/ransomwarelive.py ...`. Pivot on strong hits
+(`/indicator-pivoting`) and run a full `/ip-investigation` / `/domain-investigation` /
+`/hash-investigation` / `/url-investigation` on the few most important.
+
+Record every lookup result inline in the By-PIR section: VT detection ratio and verdict, AbuseIPDB score,
+OTX pulse count. If an IOC genuinely cannot be enriched, write `not enriched (<reason>)` — do not silently
+skip it, and do not cap the whole brief's confidence just because some were skipped.
+
+**Do not run** `tools/clis/shodan.*`, `tools/clis/greynoise.*` or censys — their free tiers are too small.
+
+Read-only only. Pace VirusTotal (~4/min, 500/day); AbuseIPDB 1,000/day, OTX and URLScan are generous.
+At 10-25 IOCs once or twice a day this stays well within free limits. Export the vetted IOCs with `/ioc-export`.
 
 ## 3. Assess (apply the deep-dive skills that match)
 
