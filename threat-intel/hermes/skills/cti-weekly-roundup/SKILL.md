@@ -19,7 +19,10 @@ read-only, nothing TLP:RED or AMBER+STRICT, no .onion or forum access, no file d
 
 1. `intel-items --since 7d --source ransomware.live --limit 1000` (all victims)
    `intel-items --since 7d --source ransomware.live --sector financ --limit 300` (financial sector)
-2. OpenCTI reports for the week: `python3 tools/clis/opencti.py list reports --created-after <ISO-7d-ago> --limit 300`
+2. OpenCTI reports for the week: `python3 tools/clis/opencti.py list reports --created-after <ISO-7d-ago> --limit 100`,
+   then repeat with `--after <end_cursor>` while `has_next_page` is true, up to 10 pages (~1,000 reports;
+   the CLI returns at most 100 per call). Triage titles first: drop general business, tech and crypto news
+   with no security content, then analyse what remains. Report how many were pulled and kept.
 3. MISP events: `python3 tools/clis/misp.py search-events --insecure --from <YYYY-MM-DD 7 days ago> --limit 300`
 4. Previous daily briefs: `~/briefs/daily/` for the last 7 days.
 5. Exploitation status: `cve-status --kev-new 7d`, and `cve-status CVE-...` for every CVE you mention.

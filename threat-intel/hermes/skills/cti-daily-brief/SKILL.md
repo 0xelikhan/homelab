@@ -25,9 +25,13 @@ rigor skills to everything. Only skip a skill when its trigger genuinely does no
 
 Run from the cti-skills repo root (`~/cti-skills`):
 
-1. OpenCTI reports and indicators:
+1. OpenCTI reports and indicators. The CLI returns at most 100 per call, so page through results:
    `python3 tools/clis/opencti.py list reports --created-after <ISO-24h-ago> --limit 100`
+   then repeat with `--after <end_cursor>` while `has_next_page` is true, up to 3 pages (~300 reports).
    `python3 tools/clis/opencti.py list indicators --score-gte 70 --created-after <ISO-24h-ago> --limit 100`
+   (page the same way if `has_next_page` is true).
+   Triage the report titles first: drop general business, tech and crypto news that has no security
+   content, then analyse what remains. Say in the brief how many were pulled and how many were kept.
 2. MISP events: `python3 tools/clis/misp.py search-events --insecure --from <YYYY-MM-DD yesterday> --limit 100`
 3. Ransomware leak posts and dark-web source changes:
    `intel-items --since 24h --source ransomware.live`
