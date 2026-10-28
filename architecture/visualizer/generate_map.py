@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Generate architecture/lab-map.svg (and render lab-map.png): a dark, carded map of the
-home lab in the style of a homelab dashboard. No IP addresses or hostnames, only zone
-purpose and tool names, so it is safe to publish.
+"""Build architecture/lab-map.svg and lab-map.png from the zone and tool lists below.
 
-    python architecture/visualizer/generate_map.py          # writes the SVG
-    python architecture/visualizer/generate_map.py --png     # also renders PNG (needs playwright)
+    python architecture/visualizer/generate_map.py
+    python architecture/visualizer/generate_map.py --png
 """
 import sys
 from html import escape
@@ -136,7 +134,6 @@ def build():
     s.append(txt(MARGIN + 18, ly, "always on (cti group)", 11, MUTED))
     s.append(dot(MARGIN + 190, ly - 4, AMBER))
     s.append(txt(MARGIN + 202, ly, "on-demand (started per lab-profile group)", 11, MUTED))
-    s.append(txt(W - MARGIN, ly, "No IPs or hostnames shown · generated from generate_map.py", 11, "#5a6b7e", "400", "end"))
 
     s.append("</svg>")
     return "\n".join(s)

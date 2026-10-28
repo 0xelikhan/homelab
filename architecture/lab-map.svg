@@ -135,5 +135,4 @@
 <text x="52.0" y="765.0" font-size="11" font-weight="400" fill="#8aa0b6" text-anchor="start">always on (cti group)</text>
 <circle cx="224.0" cy="761.0" r="3.5" fill="#f59e0b"/>
 <text x="236.0" y="765.0" font-size="11" font-weight="400" fill="#8aa0b6" text-anchor="start">on-demand (started per lab-profile group)</text>
-<text x="1366.0" y="765.0" font-size="11" font-weight="400" fill="#5a6b7e" text-anchor="end">No IPs or hostnames shown · generated from generate_map.py</text>
 </svg>
