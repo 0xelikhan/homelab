@@ -2,7 +2,7 @@
 name: cti-daily-brief
 description: Use when producing the scheduled daily threat intelligence brief for the homelab (or when asked "what's new today", "daily brief", "morning brief"). Collects the last 24 hours from OpenCTI, MISP and the local intel database, then runs the full cti-skills toolkit over the findings — enrichment, investigation, actor and campaign profiling, structured analysis, detection engineering — and produces a comprehensive, source-rated, ATT&CK-mapped brief.
 metadata:
-  version: 2.0.0
+  version: 2.1.0
   tags: [brief, scheduled, opencti, misp, homelab, comprehensive]
 ---
 
@@ -10,7 +10,8 @@ metadata:
 
 Produce a thorough daily brief. Depth over brevity: better long and complete than short. Use every
 relevant skill in the `cti-skills` pack, route each finding through `/cti-orchestrator` and apply the
-rigor skills to everything. Only skip a skill when its trigger genuinely does not apply.
+rigor skills to everything. Only skip a skill when its trigger genuinely does not apply. Follow the
+daily-triage and briefing procedures in `/sops`.
 
 ## Safety rules (always apply)
 
@@ -59,8 +60,14 @@ node tools/clis/otx.js        ip|domain|hash|url <value>    # OTX pulses
 node tools/clis/urlscan.js    domain <domain>               # urlscan (for a URL: url "<url>")
 ```
 
-Local context (no rate limit, use freely): `python3 tools/clis/opencti.py ...`,
-`python3 tools/clis/misp.py ...`, `python3 tools/clis/ransomwarelive.py ...`. Pivot on strong hits
+Follow `/ioc-enrichment-workflow` to route each IOC and merge the results into one record per indicator.
+`/lookup-virustotal`, `/lookup-abuseipdb`, `/lookup-otx` and `/lookup-urlscan` document these CLIs and how
+to read their verdicts; `/virustotal-api`, `/abuseipdb-api`, `/otx-api` and `/urlscan-api` are the API
+references when you need an endpoint the CLI does not cover.
+
+Local context (no rate limit, use freely): `/lookup-opencti` (`python3 tools/clis/opencti.py ...`),
+`/lookup-misp` (`python3 tools/clis/misp.py ...`), `/lookup-ransomwarelive`
+(`python3 tools/clis/ransomwarelive.py ...`). Pivot on strong hits
 (`/indicator-pivoting`) and run a full `/ip-investigation` / `/domain-investigation` /
 `/hash-investigation` / `/url-investigation` on the few most important.
 
@@ -92,8 +99,9 @@ At 10-25 IOCs once or twice a day this stays well within free limits. Export the
 - Grade provenance and reliability: `/source-provenance`, `/source-assessment`,
   `/quality-of-information-check`, `/claim-extraction`. Admiralty rating (A-F / 1-6) on every item.
 - For the highest-impact or most uncertain items, apply a structured technique:
-  `/structured-analytic-techniques` (ACH for competing hypotheses), `/key-assumptions-check`,
-  `/devils-advocacy`. Look ahead with `/horizon-scanning`.
+  `/ach` when attribution is ambiguous or several explanations fit the evidence,
+  `/structured-analytic-techniques`, `/key-assumptions-check`, `/devils-advocacy`. Look ahead with
+  `/horizon-scanning`.
 - Map behaviour to ATT&CK with `/mitre-attack` (only what the source states).
 - Express uncertainty with `/confidence-levels` and `/likelihood-language`; label everything per `/tlp-guide`.
 
@@ -101,6 +109,11 @@ At 10-25 IOCs once or twice a day this stays well within free limits. Export the
 
 When a finding gives usable behaviour or indicators, draft detections: `/sigma-writing` (host/SIEM),
 `/yara-writing` (files/malware), `/kql-writing` (Sentinel/Defender). Put them in the detection section.
+
+Check each technique in the brief against the lab's controls with `/control-coverage-mapping`, using
+`~/briefs/reference/wazuh-coverage.json` (ATT&CK Navigator layer of techniques with a Wazuh rule:
+green = verified in the lab, light green = custom rule not yet tested, yellow = built-in rule only).
+Mark each technique `covered`, `partial` or `gap`, and draft detections for the gaps first.
 
 ## 6. Write
 
@@ -115,12 +128,16 @@ everything that earns its place. Order:
 4. **Exploited vulnerabilities** — per CVE: product, `KEV: yes (added YYYY-MM-DD, ransomware: Known)`
    or `KEV: no`, `EPSS: 0.42 (97th percentile)`, and the action. New-to-KEV first.
 5. **Ransomware** — new financial-sector victims first, then counts by group.
-6. **Detections** — the Sigma/YARA/KQL drafted this cycle.
+6. **Detections** — coverage per technique (covered / partial / gap), then the Sigma/YARA/KQL drafted
+   this cycle.
 7. **Intelligence gaps & next collection**.
 8. **Sources & ratings** — the provenance/reliability table.
 
+Before saving, run the `/quality-control` checklist over the brief and fix what it flags.
+
 Save to `~/briefs/daily/YYYY-MM-DD.md`. Optionally emit a STIX 2.1 bundle with `/stix-bundle` to
-`~/briefs/daily/YYYY-MM-DD.stix.json`.
+`~/briefs/daily/YYYY-MM-DD.stix.json`. Apply `/intelligence-sharing` and `/tlp-guide` to anything that
+leaves the lab.
 
 ## 7. Deliver (Telegram message — your final response)
 
