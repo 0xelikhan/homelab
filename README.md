@@ -25,12 +25,15 @@ Group = the `lab-profile` group that starts and stops it. See [infrastructure/pr
 | 111 | misp | VM | cti | Threat intel feeds, sharing, enrichment modules | [threat-intel/misp](threat-intel/misp/README.md) |
 | 112 | thehive | VM | cti | OpenCTI 7, TheHive 6, Cortex 4 | [threat-intel/opencti](threat-intel/opencti/README.md), [dfir/thehive-cortex](dfir/thehive-cortex/README.md) |
 | 114 | nsm-sensor | VM | nsm | Zeek and Suricata 8 with JA4 on a mirror of all pfSense LAN traffic | [network/nsm-sensor](network/nsm-sensor/README.md) |
-| 115 | k8s-01 | VM | k8s | MicroK8s with Falco, Fluent Bit, Trivy | [infrastructure/kubernetes](infrastructure/kubernetes/README.md) |
+| 115 | k8s-01 | VM | k8s | MicroK8s with Falco, Fluent Bit, Trivy; kubernetes-goat security scenarios | [infrastructure/kubernetes](infrastructure/kubernetes/README.md) |
 | 116 | flare-vm | VM | malware | Windows malware analysis workstation (Mandiant FLARE-VM) | [malware-analysis/flare-vm](malware-analysis/flare-vm/README.md) |
 | 117 | cape | VM | malware | CAPEv2 automated sandbox, detonates samples in a nested Windows guest | [malware-analysis/cape](malware-analysis/cape/README.md) |
 | 118 | opencanary | VM | soc | OpenCanary and Cowrie honeypots | [deception/opencanary](deception/opencanary/README.md) |
 | 120 | hermes | LXC | cti | Hermes Agent: daily and weekly CTI briefs to Telegram, IOC lookups | [threat-intel/hermes](threat-intel/hermes/README.md) |
 | 121 | attack-tools | LXC | purple, attack | ATT&CK Navigator, Attack Flow builder, DeTT&CT | [adversary-simulation/attack-tools](adversary-simulation/attack-tools/README.md) |
+| 122 | homelable | LXC | always on | Homelab visualizer: Proxmox topology import, live status, documentation | — |
+| 123 | barracuda | LXC | always on | Maps CTI report text to MITRE ATT&CK techniques (sentence-transformers) | — |
+| 125 | sof-elk | VM | on-demand | SOF-ELK DFIR/forensics ELK appliance (needs the cti group stopped for RAM) | — |
 
 ## Lab groups
 
