@@ -80,7 +80,8 @@ See [network/nsm-sensor](../../network/nsm-sensor/README.md) and [threat-intel/i
 
 | Setting | Value |
 |---|---|
-| VM 112 (OpenCTI, TheHive, Cortex) | 16 GB plus a 4 GB swap file inside |
+| VM 112 (OpenCTI, TheHive, Cortex) | 20 GB plus a 4 GB swap file inside. OpenCTI Elasticsearch heap 4 GB (`ELASTIC_MEMORY_SIZE`), TheHive container 3 GB with `-Xmx2048M` |
+| Running alongside the `cti` group | Barracuda, Homelable, FMD. Stop something before starting `k8s` (6 GB) or the attack VMs |
 | Ballooning (host can reclaim) | Velociraptor, DFIR-IRIS, web-01, Kali, n8n |
 | No ballooning | Wazuh, MISP, VM 112, OpenCanary, nsm-sensor, FLARE-VM, CAPE |
 

@@ -2,7 +2,7 @@
 
 | Item | Value |
 |---|---|
-| VM | 112 `thehive`, VLAN 10, 16 GB RAM |
+| VM | 112 `thehive`, VLAN 10, 20 GB RAM, Elasticsearch heap 4 GB |
 | Web UI | port 8080 |
 | Version | 7.261019.0 |
 | Runs as | docker compose: platform, Elasticsearch, Redis, RabbitMQ, Silo (MinIO replacement), 2 workers, connectors |
