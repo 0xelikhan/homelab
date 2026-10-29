@@ -1,1043 +1,1032 @@
 {
- "name": "Wazuh detection coverage",
- "versions": {
-  "layer": "4.5",
-  "navigator": "5.3.2"
- },
- "domain": "enterprise-attack",
- "description": "Techniques with a Wazuh rule. 100 verified in the lab, 60 custom rule not yet tested, 30 built-in rule only.",
- "sorting": 3,
- "layout": {
-  "layout": "side",
-  "showName": true
- },
- "hideDisabled": false,
- "techniques": [
-  {
-   "techniqueID": "T1001",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1003.001",
-   "score": 60,
-   "comment": "custom rules 100001, 100300; 1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1003.002",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1005",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1012",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1014",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1016",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1018",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1021",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1021.001",
-   "score": 30,
-   "comment": "8 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1021.002",
-   "score": 60,
-   "comment": "custom rules 100305; 6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1021.003",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1021.004",
-   "score": 30,
-   "comment": "8 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1021.006",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1027",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1027.004",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1033",
-   "score": 30,
-   "comment": "5 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1036",
-   "score": 30,
-   "comment": "7 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1036.002",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1036.003",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1040",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1041",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1046",
-   "score": 100,
-   "comment": "custom rules 100361; 3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1047",
-   "score": 30,
-   "comment": "27 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1048.001",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1053",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1053.003",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1053.005",
-   "score": 30,
-   "comment": "5 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1055",
-   "score": 60,
-   "comment": "custom rules 184666, 184676, 184678, 184686, 184696, 184698, 184706, 184716, 184726, 184736, 184746, 184766, 184776; 25 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1055.003",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1055.012",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1057",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1059",
-   "score": 100,
-   "comment": "custom rules 100372; 9 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1059.001",
-   "score": 100,
-   "comment": "custom rules 100002, 100301; 19 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1059.003",
-   "score": 30,
-   "comment": "8 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1059.005",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1059.006",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1059.007",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1068",
-   "score": 30,
-   "comment": "7 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1070",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1070.001",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1070.004",
-   "score": 30,
-   "comment": "20 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1070.006",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1071",
-   "score": 100,
-   "comment": "custom rules 100201, 100390, 100392, 100393; 3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1071.001",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1071.002",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1071.004",
-   "score": 60,
-   "comment": "custom rules 100308, 100391; 4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1072",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1074.001",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1078",
-   "score": 100,
-   "comment": "custom rules 100362; 90 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1078.002",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1078.004",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1082",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1083",
-   "score": 30,
-   "comment": "17 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1087",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1087.002",
-   "score": 60,
-   "comment": "custom rules 100304; 1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1090",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1092",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1095",
-   "score": 30,
-   "comment": "18 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1098",
-   "score": 60,
-   "comment": "custom rules 100307; 15 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1098.001",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1098.002",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1098.003",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1102",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1105",
-   "score": 30,
-   "comment": "20 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1106",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1110",
-   "score": 100,
-   "comment": "custom rules 100371; 92 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1110.001",
-   "score": 30,
-   "comment": "5 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1112",
-   "score": 30,
-   "comment": "19 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1113",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1114",
-   "score": 30,
-   "comment": "36 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1114.001",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1114.003",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1115",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1119",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1120",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1133",
-   "score": 30,
-   "comment": "23 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1135",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1136",
-   "score": 30,
-   "comment": "8 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1136.001",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1136.003",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1137.006",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1140",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1176",
-   "score": 30,
-   "comment": "13 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1190",
-   "score": 30,
-   "comment": "18 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1203",
-   "score": 30,
-   "comment": "18 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1204",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1204.001",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1204.002",
-   "score": 30,
-   "comment": "7 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1204.003",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1207",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1210",
-   "score": 30,
-   "comment": "17 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1212",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1213",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1213.002",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1213.003",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1218",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1218.005",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1218.011",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1218.012",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1222",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1222.002",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1484",
-   "score": 30,
-   "comment": "107 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1484.001",
-   "score": 30,
-   "comment": "8 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1485",
-   "score": 30,
-   "comment": "11 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1486",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1489",
-   "score": 30,
-   "comment": "25 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1497",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1498",
-   "score": 30,
-   "comment": "15 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1498.001",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1499",
-   "score": 30,
-   "comment": "48 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1505.003",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1518.001",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1526",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1529",
-   "score": 30,
-   "comment": "15 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1530",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1531",
-   "score": 30,
-   "comment": "25 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1537",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1543.003",
-   "score": 30,
-   "comment": "12 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1546",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1546.003",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1546.011",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1546.015",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1547.001",
-   "score": 30,
-   "comment": "9 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1547.006",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1547.012",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1548",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1548.001",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1548.002",
-   "score": 30,
-   "comment": "7 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1548.003",
-   "score": 30,
-   "comment": "9 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1550",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1550.002",
-   "score": 60,
-   "comment": "custom rules 100306; 4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1552",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1552.004",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1555",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1555.003",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1556.006",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1557.002",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1558.003",
-   "score": 60,
-   "comment": "custom rules 100302",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1559.001",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1560",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1560.001",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1561.001",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1562",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1562.001",
-   "score": 30,
-   "comment": "16 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1562.004",
-   "score": 30,
-   "comment": "9 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1562.007",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1562.008",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1565.001",
-   "score": 30,
-   "comment": "6 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1566",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1567",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1567.002",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1569.002",
-   "score": 30,
-   "comment": "5 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1570",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1574",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1574.001",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1574.002",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1574.010",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1584.002",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1586",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1587.001",
-   "score": 30,
-   "comment": "3 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1587.004",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1588",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1588.001",
-   "score": 30,
-   "comment": "4 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1589.001",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1595",
-   "score": 30,
-   "comment": "1 built-in Wazuh rules",
-   "enabled": true
-  },
-  {
-   "techniqueID": "T1595.002",
-   "score": 30,
-   "comment": "2 built-in Wazuh rules",
-   "enabled": true
-  }
- ],
- "gradient": {
-  "colors": [
-   "#ffe766ff",
-   "#8ec843ff"
+  "name": "Wazuh detection coverage",
+  "versions": {
+    "attack": "20",
+    "navigator": "5.3.2",
+    "layer": "4.5"
+  },
+  "domain": "enterprise-attack",
+  "description": "Techniques with a Wazuh rule. 100 verified in the lab, 60 custom rule not yet tested, 30 built-in rule only.",
+  "sorting": 3,
+  "layout": {
+    "layout": "side",
+    "showName": true
+  },
+  "hideDisabled": false,
+  "techniques": [
+    {
+      "techniqueID": "T1001",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1003.001",
+      "score": 60,
+      "comment": "custom rules 100001, 100300; 1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1003.002",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1005",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1012",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1014",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1016",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1018",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1021",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1021.001",
+      "score": 30,
+      "comment": "8 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1021.002",
+      "score": 60,
+      "comment": "custom rules 100305; 6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1021.003",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1021.004",
+      "score": 30,
+      "comment": "8 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1021.006",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1027",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1027.004",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1033",
+      "score": 30,
+      "comment": "5 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1036",
+      "score": 30,
+      "comment": "7 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1036.002",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1036.003",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1040",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1041",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1046",
+      "score": 100,
+      "comment": "custom rules 100361; 3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1047",
+      "score": 30,
+      "comment": "27 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1048.001",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1053",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1053.003",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1053.005",
+      "score": 30,
+      "comment": "5 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1055",
+      "score": 60,
+      "comment": "custom rules 184666, 184676, 184678, 184686, 184696, 184698, 184706, 184716, 184726, 184736, 184746, 184766, 184776; 25 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1055.003",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1055.012",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1057",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1059",
+      "score": 100,
+      "comment": "custom rules 100372; 9 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1059.001",
+      "score": 100,
+      "comment": "custom rules 100002, 100301; 19 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1059.003",
+      "score": 30,
+      "comment": "8 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1059.005",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1059.006",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1059.007",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1068",
+      "score": 30,
+      "comment": "7 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1070",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1685.005",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1070.004",
+      "score": 30,
+      "comment": "20 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1070.006",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1071",
+      "score": 100,
+      "comment": "custom rules 100201, 100390, 100392, 100393; 3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1071.001",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1071.002",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1071.004",
+      "score": 60,
+      "comment": "custom rules 100308, 100391; 4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1072",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1074.001",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1078",
+      "score": 100,
+      "comment": "custom rules 100362; 90 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1078.002",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1078.004",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1082",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1083",
+      "score": 30,
+      "comment": "17 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1087",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1087.002",
+      "score": 60,
+      "comment": "custom rules 100304; 1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1090",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1092",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1095",
+      "score": 30,
+      "comment": "18 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1098",
+      "score": 60,
+      "comment": "custom rules 100307; 15 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1098.001",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1098.002",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1098.003",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1102",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1105",
+      "score": 30,
+      "comment": "20 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1106",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1110",
+      "score": 100,
+      "comment": "custom rules 100371; 92 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1110.001",
+      "score": 30,
+      "comment": "5 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1112",
+      "score": 30,
+      "comment": "19 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1113",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1114",
+      "score": 30,
+      "comment": "36 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1114.001",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1114.003",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1115",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1119",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1120",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1133",
+      "score": 30,
+      "comment": "23 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1135",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1136",
+      "score": 30,
+      "comment": "8 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1136.001",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1136.003",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1137.006",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1140",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1176",
+      "score": 30,
+      "comment": "13 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1190",
+      "score": 30,
+      "comment": "18 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1203",
+      "score": 30,
+      "comment": "18 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1204",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1204.001",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1204.002",
+      "score": 30,
+      "comment": "7 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1204.003",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1207",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1210",
+      "score": 30,
+      "comment": "17 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1212",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1213",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1213.002",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1213.003",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1218",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1218.005",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1218.011",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1218.012",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1222",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1222.002",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1484",
+      "score": 30,
+      "comment": "107 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1484.001",
+      "score": 30,
+      "comment": "8 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1485",
+      "score": 30,
+      "comment": "11 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1486",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1489",
+      "score": 30,
+      "comment": "25 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1497",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1498",
+      "score": 30,
+      "comment": "15 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1498.001",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1499",
+      "score": 30,
+      "comment": "48 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1505.003",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1518.001",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1526",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1529",
+      "score": 30,
+      "comment": "15 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1530",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1531",
+      "score": 30,
+      "comment": "25 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1537",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1543.003",
+      "score": 30,
+      "comment": "12 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1546",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1546.003",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1546.011",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1546.015",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1547.001",
+      "score": 30,
+      "comment": "9 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1547.006",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1547.012",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1548",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1548.001",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1548.002",
+      "score": 30,
+      "comment": "7 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1548.003",
+      "score": 30,
+      "comment": "9 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1550",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1550.002",
+      "score": 60,
+      "comment": "custom rules 100306; 4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1552",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1552.004",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1555",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1555.003",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1556.006",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1557.002",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1558.003",
+      "score": 60,
+      "comment": "custom rules 100302",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1559.001",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1560",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1560.001",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1561.001",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1685",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1686",
+      "score": 30,
+      "comment": "9 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1686.001",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1685.002",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1565.001",
+      "score": 30,
+      "comment": "6 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1566",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1567",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1567.002",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1569.002",
+      "score": 30,
+      "comment": "5 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1570",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1574",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1574.001",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1574.010",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1584.002",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1586",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1587.001",
+      "score": 30,
+      "comment": "3 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1587.004",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1588",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1588.001",
+      "score": 30,
+      "comment": "4 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1589.001",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1595",
+      "score": 30,
+      "comment": "1 built-in Wazuh rules",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1595.002",
+      "score": 30,
+      "comment": "2 built-in Wazuh rules",
+      "enabled": true
+    }
   ],
-  "minValue": 0,
-  "maxValue": 100
- },
- "legendItems": [
-  {
-   "label": "Verified in the lab",
-   "color": "#8ec843ff"
+  "gradient": {
+    "colors": [
+      "#ffe766ff",
+      "#8ec843ff"
+    ],
+    "minValue": 0,
+    "maxValue": 100
   },
-  {
-   "label": "Custom rule, not yet tested",
-   "color": "#c4d955ff"
-  },
-  {
-   "label": "Built-in Wazuh rule only",
-   "color": "#ffe766ff"
-  }
- ],
- "showTacticRowBackground": true,
- "selectTechniquesAcrossTactics": true
+  "legendItems": [
+    {
+      "label": "Verified in the lab",
+      "color": "#8ec843ff"
+    },
+    {
+      "label": "Custom rule, not yet tested",
+      "color": "#c4d955ff"
+    },
+    {
+      "label": "Built-in Wazuh rule only",
+      "color": "#ffe766ff"
+    }
+  ],
+  "showTacticRowBackground": true,
+  "selectTechniquesAcrossTactics": true
 }

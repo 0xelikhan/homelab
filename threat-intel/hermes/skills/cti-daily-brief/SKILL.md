@@ -105,7 +105,9 @@ At 10-25 IOCs once or twice a day this stays well within free limits. Export the
   `/ach` when attribution is ambiguous or several explanations fit the evidence,
   `/structured-analytic-techniques`, `/key-assumptions-check`, `/devils-advocacy`. Look ahead with
   `/horizon-scanning`.
-- Map behaviour to ATT&CK with `/mitre-attack` (only what the source states).
+- Map behaviour to ATT&CK with `/mitre-attack`, following `~/.hermes/skills/homelab/attack-mapping-rules.md`:
+  eligibility first, a verbatim quote per mapping, occurrence status, confidence rubric, and every ID checked
+  against OpenCTI's current ATT&CK.
 - Express uncertainty with `/confidence-levels` and `/likelihood-language`; label everything per `/tlp-guide`.
 
 ## 5. Detection engineering (for the day's most actionable threats)
@@ -125,7 +127,7 @@ everything that earns its place. Order:
 
 1. **Bottom line** — the 3-5 things that matter most, each with its so-what.
 2. **By PIR** — each item: `[A-F][1-6] Title. Assessment, with confidence/likelihood language.
-   ATT&CK: T.... Enrichment: <key lookups>. [OpenCTI](link) [source](link)`.
+   ATT&CK: T#### Name (occurrence, confidence). Enrichment: <key lookups>. [OpenCTI](link) [source](link)`.
    OpenCTI links: `<opencti-url>/dashboard/analyses/reports/<id>`.
 3. **Threat actors & campaigns** — profiles and updates from the assess phase.
 4. **Exploited vulnerabilities** — per CVE: product, `KEV: yes (added YYYY-MM-DD, ransomware: Known)`

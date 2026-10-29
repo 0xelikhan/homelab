@@ -79,7 +79,9 @@ are local with no limit.
 ## 4. Analyse (tradecraft + strategic)
 
 - Ransomware: victims per group, new groups, financial-sector victims (name, country, group, date).
-- Techniques: count ATT&CK techniques in this week's reporting (`/mitre-attack`). Compare with the Red
+- Techniques: count ATT&CK techniques in this week's reporting (`/mitre-attack`), counting only mappings
+  that pass `~/.hermes/skills/homelab/attack-mapping-rules.md` (eligible, quoted, ID checked against
+  OpenCTI's current ATT&CK; show occurrence and confidence). Compare with the Red
   Canary top list: **rising** (seen, outside Red Canary top 10), **steady** (in both), **quiet**
   (Red Canary top but absent).
 - Grade every item: `/source-provenance`, `/source-assessment`, `/quality-of-information-check`;
