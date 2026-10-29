@@ -33,6 +33,9 @@ Run from the cti-skills repo root (`~/cti-skills`):
    (page the same way if `has_next_page` is true).
    Triage the report titles first: drop general business, tech and crypto news that has no security
    content, then analyse what remains. Say in the brief how many were pulled and how many were kept.
+   `--created-after` is when OpenCTI ingested the post, and new feeds backfill a week of older posts, so
+   window on each report's `published` date: keep only reports published in the last 24 hours (treat a
+   future date as today) and count the older ones as backfill, not news.
 2. MISP: `misp-recent --since 24h` — what the MISP feeds added in the window, per feed, with samples from
    the C2 / malware / phishing feeds. Feed events keep their original date and are never published, so
    `misp.py search-events --from` misses them; use it only for analyst-created events. Report the per-feed

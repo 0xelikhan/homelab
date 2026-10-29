@@ -1,0 +1,13 @@
+#!/bin/sh
+# octi-restart: restart OpenCTI in dependency order on VM 112, so connectors don't stick on a failed first start.
+#   octi-restart            RabbitMQ, platform, then workers and connectors
+#   octi-restart connectors  workers and connectors only
+cd /opt/opencti7 || exit 1
+wait_healthy() { for i in $(seq 1 50); do [ "$(docker inspect -f '{{.State.Health.Status}}' "$1")" = healthy ] && return 0; sleep 6; done; return 1; }
+if [ "$1" != connectors ]; then
+  docker restart opencti7-rabbitmq-1 >/dev/null && wait_healthy opencti7-rabbitmq-1 || exit 1
+  docker restart opencti7-opencti-1 >/dev/null && wait_healthy opencti7-opencti-1 || exit 1
+fi
+for c in $(docker ps --format '{{.Names}}' | grep -E 'opencti7-(worker|connector)-'); do docker restart "$c" >/dev/null & done
+wait
+echo "restarted"

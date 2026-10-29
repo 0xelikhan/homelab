@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""octi-health: OpenCTI plumbing health as JSON, for lab-health. Run on VM 112 as root.
+
+File handles on RabbitMQ and the workers, the RabbitMQ management API, connector queues that hold
+messages with no consumer, the ImportDocument backlog, and when rss-extract last ran.
+"""
+import base64, json, os, subprocess, urllib.request
+
+ENV = dict(l.split("=", 1) for l in open("/opt/opencti7/.env").read().splitlines() if "=" in l and not l.startswith("#"))
+
+
+def sh(cmd):
+    return subprocess.run(cmd, shell=True, capture_output=True, text=True).stdout.strip()
+
+
+def fds(name):
+    pid = sh(f"docker inspect -f '{{{{.State.Pid}}}}' {name}")
+    if not pid or pid == "0":
+        return None
+    used = len(os.listdir(f"/proc/{pid}/fd"))
+    limit = int(sh(f"awk '/Max open files/{{print $4}}' /proc/{pid}/limits") or 0)
+    return {"name": name, "used": used, "limit": limit}
+
+
+out = {"fd": [], "mgmt_status": None, "stuck_queues": [], "import_document_backlog": None, "rss_extract_last": None}
+names = ["opencti7-rabbitmq-1"] + sh("docker ps --format '{{.Names}}' | grep opencti7-worker").split()
+out["fd"] = [f for f in map(fds, names) if f]
+
+ip = sh("docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' opencti7-rabbitmq-1")
+auth = base64.b64encode(f"{ENV['RABBITMQ_DEFAULT_USER']}:{ENV['RABBITMQ_DEFAULT_PASS']}".encode()).decode()
+try:
+    req = urllib.request.Request(f"http://{ip}:15672/api/queues?columns=name,messages,consumers",
+                                 headers={"Authorization": "Basic " + auth})
+    r = urllib.request.urlopen(req, timeout=60)
+    out["mgmt_status"] = r.status
+    queues = json.load(r)
+    out["stuck_queues"] = [{"queue": q["name"], "messages": q["messages"]} for q in queues
+                           if q.get("messages", 0) >= 5 and not q.get("consumers")]
+    # ImportDocument's listen queue is the one with that connector's id
+    try:
+        greq = urllib.request.Request("http://127.0.0.1:8080/graphql",
+                                      json.dumps({"query": "{ connectors { id name } }"}).encode(),
+                                      {"Authorization": "Bearer " + ENV["OPENCTI_ADMIN_TOKEN"], "Content-Type": "application/json"})
+        ids = [c["id"] for c in json.load(urllib.request.urlopen(greq, timeout=120))["data"]["connectors"] if c["name"] == "ImportDocument"]
+        out["import_document_backlog"] = sum(q.get("messages", 0) for q in queues if q["name"] in {f"listen_{i}" for i in ids})
+    except Exception:
+        pass
+except urllib.error.HTTPError as e:
+    out["mgmt_status"] = e.code
+except Exception as e:
+    out["mgmt_status"] = f"error: {type(e).__name__}"
+
+last = sh("systemctl show rss-extract.service -p ExecMainExitTimestamp --value")
+out["rss_extract_last"] = last if last and last != "n/a" else None
+out["rss_extract_age_min"] = (int(sh("date +%s")) - int(sh(f"date -d '{last}' +%s"))) // 60 if out["rss_extract_last"] else None
+out["rss_extract_timer"] = sh("systemctl is-active rss-extract.timer")
+out["rss_extract_running"] = sh("systemctl is-active rss-extract.service") == "activating"
+print(json.dumps(out))

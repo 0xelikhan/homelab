@@ -24,6 +24,8 @@ read-only, nothing TLP:RED or AMBER+STRICT, no .onion or forum access, no file d
    then repeat with `--after <end_cursor>` while `has_next_page` is true, up to 10 pages (~1,000 reports;
    the CLI returns at most 100 per call). Triage titles first: drop general business, tech and crypto news
    with no security content, then analyse what remains. Report how many were pulled and kept.
+   Window on each report's `published` date (last 7 days, future dates count as today), not on when
+   OpenCTI ingested it: new feeds backfill older posts.
 3. MISP: `misp-recent --since 7d` — the week's feed additions per feed, with C2 / malware / phishing samples.
    Feed events keep their original date and are never published, so `misp.py search-events --from` misses
    them; use it only for analyst-created events. Use `/lookup-misp` to correlate the week's IOCs.

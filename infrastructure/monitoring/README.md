@@ -23,6 +23,11 @@ Checks the CTI stack every run, and every other machine only while it is running
 | MISP web, API and containers | `docker compose up -d` |
 | OpenCTI API and containers, TheHive and Cortex | `docker compose up -d`, restart TheHive and Cortex |
 | OpenCTI connectors active, ingest backlog | |
+| OpenCTI file handles (RabbitMQ, workers under 80 % of the limit) | |
+| OpenCTI message bus (RabbitMQ management API answers) | [octi-restart](octi-restart): RabbitMQ, platform, then workers and connectors |
+| OpenCTI connector queues (no queue holding messages without a consumer) | `octi-restart connectors` |
+| RSS entity extraction (rss-extract ran in the last 2 hours, ImportDocument backlog under 3000) | run rss-extract |
+| MISP feeds pulling (more than 2 feeds failing on the last fetch) | |
 | Hermes Telegram gateway | restart the gateway |
 | Hermes collector | run the collector |
 | Hermes brief jobs | resend a brief whose Telegram delivery failed (once per brief) |
@@ -33,6 +38,8 @@ Checks the CTI stack every run, and every other machine only while it is running
 | NSM sensor Suricata and Zeek | restart Suricata, start Zeek |
 | CTI detection self-test (sensor and Wazuh running) | |
 | Velociraptor, ElastAlert, honeypots, CAPE, DFIR-IRIS, n8n, Falco | restart the service or pod |
+
+The OpenCTI plumbing checks read one JSON report from [octi-health](octi-health), installed at `/usr/local/bin/octi-health` on VM 112.
 
 The self-test looks up `ioc-selftest.lab.invalid` from the OpenCTI VM and expects a Wazuh alert within two minutes. It proves the whole intel to detection path works: [IOC export](../../threat-intel/ioc-export/README.md), the port mirror, Suricata and Wazuh.
 
