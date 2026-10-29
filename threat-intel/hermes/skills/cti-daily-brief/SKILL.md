@@ -33,7 +33,10 @@ Run from the cti-skills repo root (`~/cti-skills`):
    (page the same way if `has_next_page` is true).
    Triage the report titles first: drop general business, tech and crypto news that has no security
    content, then analyse what remains. Say in the brief how many were pulled and how many were kept.
-2. MISP events: `python3 tools/clis/misp.py search-events --insecure --from <YYYY-MM-DD yesterday> --limit 100`
+2. MISP: `misp-recent --since 24h` — what the MISP feeds added in the window, per feed, with samples from
+   the C2 / malware / phishing feeds. Feed events keep their original date and are never published, so
+   `misp.py search-events --from` misses them; use it only for analyst-created events. Report the per-feed
+   counts, and use `/lookup-misp` to check whether the brief's IOCs already appear in MISP.
 3. Ransomware leak posts and dark-web source changes:
    `intel-items --since 24h --source ransomware.live`
    `intel-items --since 24h --source deepdarkCTI`

@@ -56,6 +56,7 @@ Edit [skills/pirs.md](skills/pirs.md) to change what the briefs prioritise.
 |---|---|
 | `intel-items` | Reads the collector database (`--since 24h`, `--source`, `--grep`) |
 | `cve-status` | KEV status (date added, known ransomware use) and EPSS score for CVE IDs. `cve-status --kev-new 24h` lists new KEV entries. KEV comes from the collector's copy, EPSS live from FIRST |
+| [`misp-recent`](tools/misp-recent) | MISP feed additions in a window (`--since 24h` / `7d`), per feed, with samples from the C2, malware and phishing feeds. Installed at `/usr/local/bin/misp-recent` |
 
 The brief skills call `cve-status` for every CVE they mention, so exploitation status comes from the source, not from news articles.
 

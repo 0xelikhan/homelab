@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""misp-recent: what MISP feeds added in a time window, as JSON.
+
+  misp-recent                 last 24 hours
+  misp-recent --since 7d      last 7 days
+  misp-recent --samples 10    up to 10 example values per C2/malware feed (default 5)
+
+Feed events keep their original date and are never published; each fetch adds attributes to
+the same event and bumps its timestamp. So this searches attributes by timestamp, not events by
+date. Reads MISP_URL and MISP_API_KEY (or MISP_KEY) from the environment or ~/.hermes/.env.
+Read-only.
+"""
+import json, os, re, ssl, sys, urllib.request
+from collections import Counter, defaultdict
+
+PAGE = 5000
+MAX_PAGES = 40
+SIGNAL = re.compile(r"c2|threatfox|feodo|viriback|urlhaus|malwarebazaar|ssl|botnet|phish", re.I)
+
+
+def env():
+    e = dict(os.environ)
+    p = os.path.expanduser("~/.hermes/.env")
+    if os.path.exists(p):
+        for line in open(p):
+            if "=" in line and not line.lstrip().startswith("#"):
+                k, v = line.rstrip("\n").split("=", 1)
+                e.setdefault(k, v.strip().strip('"').strip("'"))
+    url, key = e.get("MISP_URL", "").rstrip("/"), e.get("MISP_API_KEY") or e.get("MISP_KEY")
+    if not url or not key:
+        sys.exit(json.dumps({"error": "MISP_URL / MISP_API_KEY not set"}))
+    return url, key
+
+
+def search(url, key, body):
+    req = urllib.request.Request(f"{url}/attributes/restSearch", json.dumps(body).encode(), {
+        "Authorization": key, "Accept": "application/json", "Content-Type": "application/json"})
+    ctx = ssl._create_unverified_context()  # lab MISP uses a self-signed certificate
+    return json.load(urllib.request.urlopen(req, timeout=180, context=ctx)).get("response", {}).get("Attribute", [])
+
+
+def main():
+    args = sys.argv[1:]
+    since = args[args.index("--since") + 1] if "--since" in args else "24h"
+    samples = int(args[args.index("--samples") + 1]) if "--samples" in args else 5
+    url, key = env()
+
+    feeds = defaultdict(lambda: {"count": 0, "types": Counter(), "samples": []})
+    total, truncated = 0, False
+    for page in range(1, MAX_PAGES + 1):
+        attrs = search(url, key, {"timestamp": since, "to_ids": True, "limit": PAGE, "page": page,
+                                  "includeEventTags": False, "deleted": False})
+        for a in attrs:
+            name = a.get("Event", {}).get("info") or f"event {a.get('event_id')}"
+            f = feeds[name]
+            f["count"] += 1
+            f["types"][a["type"]] += 1
+            if SIGNAL.search(name) and len(f["samples"]) < samples:
+                f["samples"].append({"type": a["type"], "value": a["value"]})
+        total += len(attrs)
+        if len(attrs) < PAGE:
+            break
+    else:
+        truncated = True
+
+    out = {
+        "source": "misp", "window": since, "total_ids_attributes": total, "truncated": truncated,
+        "feeds": sorted(({"feed": n, "count": f["count"], "by_type": dict(f["types"].most_common()),
+                          **({"samples": f["samples"]} if f["samples"] else {})}
+                         for n, f in feeds.items()), key=lambda x: -x["count"]),
+        "note": "Bulk feed data. Use /lookup-misp on specific IOCs to correlate; do not paste raw lists.",
+    }
+    print(json.dumps(out, indent=2))
+
+
+if __name__ == "__main__":
+    main()
