@@ -2,7 +2,7 @@
 
 | File | What it is |
 |---|---|
-| [feeds.csv](feeds.csv) | 164 verified feeds: name, category, feed URL |
+| [feeds.csv](feeds.csv) | 200 verified feeds: name, category, feed URL |
 | [discover.py](discover.py) | Rebuilds `feeds.csv`. Finds the RSS link on each blog homepage and keeps only feeds that parse |
 
 ## Sources
@@ -15,6 +15,7 @@
 | Google Cloud Threat Intelligence (Mandiant) | `https://cloudblog.withgoogle.com/topics/threat-intelligence/rss/` |
 | infosec.exchange hashtags | #threatintel #cti #malware #ransomware #ioc #cve #infosec #dfir |
 | Media | The Record, CyberScoop, Security Affairs, Dark Reading, Infosecurity Magazine, The Hacker News |
+| [jozeta/ThreatFeed](https://github.com/jozeta/ThreatFeed) | 36 DFIR, PSIRT, CERT, vuln and threat-intel feeds (watchTowr, PortSwigger, Volexity, Inversecos, CVEFeed.io, CERTs, distro security notices, …), deconflicted against the existing list |
 
 ## Not RSS
 

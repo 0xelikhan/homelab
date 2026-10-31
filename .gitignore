@@ -16,3 +16,6 @@ Thumbs.db
 __pycache__/
 *.pyc
 *.log
+
+# Open WebUI local session key (not a repo artifact)
+.webui_secret_key

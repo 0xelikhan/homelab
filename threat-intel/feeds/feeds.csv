@@ -163,3 +163,39 @@ SANS ISC Diary,Government,https://isc.sans.edu/rssfeed_full.xml
 Canadian Centre for Cyber Security,Government,https://www.cyber.gc.ca/api/cccs/rss/v1/get?feed=alerts_advisories&lang=en
 CISA Known Exploited Vulnerabilities,Government,https://www.cisa.gov/cybersecurity-advisories/ics-advisories.xml
 Google Cloud Threat Intelligence (Mandiant),Vendor,https://cloudblog.withgoogle.com/topics/threat-intelligence/rss/
+AboutDFIR,Analyst,https://aboutdfir.com/feed/
+Bitdefender Labs,Vendor,https://www.bitdefender.com/blog/api/rss/labs/
+CERT-EU Security Advisories,Government,https://cert.europa.eu/publications/security-advisories-rss
+CERT-SE,Government,https://www.cert.se/feed.rss
+CERT/CC Vulnerability Notes,Government,https://www.kb.cert.org/vulfeed
+CVEFeed.io Latest CVEs,Community,https://cvefeed.io/rssfeed/latest.xml
+Chrome Releases,Vendor,https://chromereleases.googleblog.com/feeds/posts/default
+Cyber Kendra,Media,https://www.cyberkendra.com/feeds/posts/default
+DFIR Diva,Analyst,https://dfirdiva.com/feed/
+Daily Dark Web,Media,https://dailydarkweb.net/feed/
+Datadog Security Labs,Vendor,https://securitylabs.datadoghq.com/rss/feed.xml
+Debian Security Advisories,Vendor,https://www.debian.org/security/dsa
+Didier Stevens,Analyst,https://blog.didierstevens.com/feed/
+Emsisoft Blog,Vendor,https://www.emsisoft.com/en/blog/feed/
+Exploit-DB,Community,https://www.exploit-db.com/rss.xml
+FortiGuard Labs,Vendor,https://feeds.fortinet.com/fortinet/blog/threat-research
+Fortinet PSIRT Advisories,Vendor,https://filestore.fortinet.com/fortiguard/rss/ir.xml
+Hexacorn,Analyst,https://www.hexacorn.com/blog/feed/
+Horizon3.ai Attack Research,Vendor,https://www.horizon3.ai/feed/
+Inversecos,Analyst,https://www.inversecos.com/feeds/posts/default
+Invictus IR,Vendor,https://www.invictus-ir.com/news/rss.xml
+Jeffrey Appel,Analyst,https://jeffreyappel.nl/feed/
+Malware Traffic Analysis,Analyst,https://www.malware-traffic-analysis.net/blog-entries.rss
+Objective-See (Mac malware),Analyst,https://objective-see.org/rss.xml
+OffSec Blog,Vendor,https://www.offsec.com/rss.xml
+PortSwigger Web Security Research,Vendor,https://portswigger.net/research/rss
+Praetorian Security,Vendor,https://www.praetorian.com/feed/
+Risky Bulletin,Media,https://risky.biz/feeds/risky-business-news/
+Sekoia.io Blog,Vendor,https://blog.sekoia.io/feed/
+Trail of Bits,Vendor,https://blog.trailofbits.com/feed/
+Ubuntu Security Notices,Vendor,https://ubuntu.com/security/notices/rss.xml
+Volexity,Vendor,https://www.volexity.com/feed/
+Windows Incident Response (Harlan Carvey),Analyst,https://windowsir.blogspot.com/feeds/posts/default
+Wordfence,Vendor,https://www.wordfence.com/feed/
+Zscaler ThreatLabz,Vendor,https://www.zscaler.com/blogs/feeds/security-research
+watchTowr Labs,Vendor,https://labs.watchtowr.com/rss/
