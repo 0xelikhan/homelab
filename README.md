@@ -36,6 +36,7 @@ Group = the `lab-profile` group that starts and stops it. See [infrastructure/pr
 | 122 | homelable | LXC | always on | Homelab visualizer: Proxmox topology import, live status, documentation | — |
 | 123 | barracuda | LXC | always on | Maps CTI report text to MITRE ATT&CK techniques (sentence-transformers) | — |
 | 125 | sof-elk | VM | on-demand | SOF-ELK DFIR/forensics ELK appliance (needs the cti group stopped for RAM) | — |
+| 126 | sift | VM | on-demand | SIFT + REMnux + Eric Zimmerman + agentic DFIR + Valhuntir forensic workstation (needs the cti group stopped for RAM) | [dfir/sift-workstation](dfir/sift-workstation/README.md) |
 
 ## Lab groups
 
@@ -85,7 +86,7 @@ infrastructure/
   tailscale/             Remote access
   monitoring/            Lab health check, Telegram alerts
 siem/                    wazuh, elastalert
-dfir/                    velociraptor, dfir-iris, thehive-cortex
+dfir/                    velociraptor, dfir-iris, thehive-cortex, sift-workstation, scripts
 threat-intel/            opencti, misp, hermes, ioc-export, feeds, n8n-soar
 network/                 pfsense-suricata, nsm-sensor, wireshark
 deception/               opencanary, Azure-HoneyPot, GCP-HoneyPot

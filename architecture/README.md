@@ -25,7 +25,7 @@
 
 | VLAN | Purpose | Machines |
 |---|---|---|
-| 10 | SOC tools | Wazuh, Velociraptor, n8n, ElastAlert, DFIR-IRIS, MISP, TheHive/OpenCTI/Cortex, Hermes, attack-tools, nsm-sensor (management) |
+| 10 | SOC tools | Wazuh, Velociraptor, n8n, ElastAlert, DFIR-IRIS, MISP, TheHive/OpenCTI/Cortex, Hermes, attack-tools, nsm-sensor (management), sift (on-demand) |
 | 20 | Victim network | DC01, Metasploitable, OpenCanary |
 | 30 | Attacker | Kali |
 | 40 | Servers | web-01, k8s-01 |
