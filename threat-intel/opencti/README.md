@@ -26,7 +26,7 @@ Feeds:
 | dshield | DShield block list |
 | ransomwarelive | ransomware.live groups and victims |
 | wiz | Wiz public cloud threat landscape |
-| RSS ingestion | 164 blog, vendor, gov and community feeds, see [../feeds](../feeds/README.md) |
+| RSS ingestion | 438 blog, vendor, gov and community feeds, see [../feeds](../feeds/README.md) |
 
 Enrichment (manual, from an observable's page): VirusTotal, AbuseIPDB, GreyNoise, CrowdSec, IPinfo, Shodan InternetDB, Google Safe Browsing, urlscan, Hybrid Analysis, FIRST EPSS (auto, scores CVEs).
 

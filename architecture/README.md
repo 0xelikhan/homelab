@@ -42,7 +42,7 @@ Honeypots (OpenCanary, Cowrie) ── logs via Wazuh agent ──► Wazuh
 pfSense LAN ── port mirror ──► nsm-sensor (Zeek, Suricata) ── alerts via Wazuh agent ──► Wazuh
 
 MISP feeds (abuse.ch, CIRCL, Botvrij, dataplane, ...) ──► MISP
-OpenCTI connectors + 164 RSS feeds ──► OpenCTI ◄── MISP (published events)
+OpenCTI connectors + 438 RSS feeds ──► OpenCTI ◄── MISP (published events)
 TheHive ──► Cortex analyzers
 TheHive ◄──► MISP
 
