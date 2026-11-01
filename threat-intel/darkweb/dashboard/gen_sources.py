@@ -6,7 +6,8 @@ import csv, json, re, os
 from urllib.parse import urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(HERE, "..", "deepdarkcti")
+# live clone (auto-pulled on the research VM) takes precedence over the repo-vendored copy
+SRC = os.path.join(HERE, "deepdarkCTI") if os.path.isdir(os.path.join(HERE, "deepdarkCTI")) else os.path.join(HERE, "..", "deepdarkcti")
 
 LINK = re.compile(r"\[(.+?)\]\((.+?)\)")
 
