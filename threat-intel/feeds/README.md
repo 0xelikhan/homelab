@@ -5,6 +5,7 @@
 | [feeds.csv](feeds.csv) | 200 verified feeds: name, category, feed URL. The hand-curated core |
 | [live-feeds.csv](live-feeds.csv) | Snapshot of all 438 RSS ingestions registered live in OpenCTI (432 running), exported for disaster recovery. Superset of `feeds.csv`, includes OPML imports and later additions |
 | [discover.py](discover.py) | Rebuilds `feeds.csv`. Finds the RSS link on each blog homepage and keeps only feeds that parse |
+| [restore.py](restore.py) | Reloads `live-feeds.csv` into a fresh OpenCTI. Run on the OpenCTI host as root. Skips feeds already registered, safe to re-run |
 
 ## Sources
 
