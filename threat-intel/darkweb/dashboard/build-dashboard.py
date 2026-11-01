@@ -99,10 +99,34 @@ def category_block(key, cat):
     return (f'<details id="{key}"><summary>{html.escape(cat["title"])} '
             f'<span class="c">{cat["active"]} active / {cat["total"]}</span></summary>\n{inner}\n</details>')
 
-# --- live data + pinned onion health checks (parallel, over Tor on the WS) ---
+# --- live feed (every refresh) + pinned onion checks (cached, re-checked every 12h) ---
 victims, errs = live_victims()
-with ThreadPoolExecutor(max_workers=4) as ex:
-    pin_status = list(ex.map(lambda p: (p[0], p[1], onion_up(p[1])), PINNED))
+CACHE = os.path.join(HERE, "onion-status.json")
+CHECK_INTERVAL_H = 12
+
+def load_cache():
+    try:
+        c = json.load(open(CACHE, encoding="utf-8"))
+        age = (datetime.datetime.now() - datetime.datetime.fromisoformat(c["checked"])).total_seconds()
+        if age < CHECK_INTERVAL_H * 3600 and len(c.get("status", [])) == len(PINNED):
+            return c
+    except Exception:
+        pass
+    return None
+
+cache = load_cache()
+if cache:
+    pin_status = [tuple(s) for s in cache["status"]]
+    pin_checked = cache["checked"][:16].replace("T", " ")
+else:
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        pin_status = list(ex.map(lambda p: (p[0], p[1], onion_up(p[1])), PINNED))
+    nowiso = datetime.datetime.now().isoformat()
+    try:
+        json.dump({"checked": nowiso, "status": [list(s) for s in pin_status]}, open(CACHE, "w"))
+    except Exception:
+        pass
+    pin_checked = nowiso[:16].replace("T", " ")
 now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
 def vrow(v):
@@ -145,9 +169,9 @@ ul.dir{{list-style:none;margin:4px 0 8px;padding:0;columns:2;column-gap:28px}} u
 @media(max-width:700px){{ul.dir,.pin ul{{columns:1}}}}
 </style></head><body>
 <h1>CTI Research Dashboard</h1>
-<p class="sub">All traffic routed over Tor. Refreshed {now}. Onion status is a live check this refresh. On any attack, <b>details</b> = ransomware.live writeup (reliable, has the screenshot) even when the gang onion is down.</p>
+<p class="sub">All traffic routed over Tor. Feed refreshed {now}. On any attack, <b>details</b> = ransomware.live writeup (reliable, has the screenshot) even when the gang onion is down.</p>
 {errnote}
-<h2>Pinned entry points &mdash; live Tor check</h2>
+<h2>Pinned entry points &mdash; onion status checked {pin_checked} (every 12h)</h2>
 <div class="pin"><ul>
 {pins}
 </ul></div>
