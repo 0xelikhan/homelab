@@ -13,8 +13,9 @@ declare -A PROFILES=(
   [malware]="116 117"                        # flare-vm, cape (VLAN 99)
   [k8s]="115"                                # k8s-01
   [nsm]="114"                                # nsm-sensor (Zeek + Suricata)
+  [research]="127 128"                       # whonix gateway + workstation (VLAN 50, isolated, dark-web CTI)
 )
-ORDER="cti soc purple attack malware k8s nsm"
+ORDER="cti soc purple attack malware k8s nsm research"
 
 is_ct() { pct status "$1" &>/dev/null; }
 
