@@ -49,6 +49,8 @@ def norm(u):
 data = {}
 for key, fname, title, fmt, cols in CATS:
     path = os.path.join(SRC, fname)
+    if not os.path.exists(path):
+        continue   # keep a complete set only; a missing file just drops its category
     entries, seen = [], set()
     for c in rows(path):
         name = url = status = extra = ""
