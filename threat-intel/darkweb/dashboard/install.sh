@@ -12,7 +12,7 @@ echo "[1/5] installing files to $DEST"
 mkdir -p "$DEST"
 for f in crawl-sources.py build-dashboard.py harvest-mirrors.py gen_sources.py \
          refresh-all.sh cti-crawl.sh weekly-maint.sh extract-iocs.py ioc-paste.sh \
-         sources.json actors.json; do
+         install-translation.sh sources.json actors.json; do
     cp "$SRC/$f" "$DEST/"
 done
 chmod +x "$DEST"/*.py "$DEST"/*.sh
@@ -41,3 +41,7 @@ echo
 echo "Done. Open $DEST/dashboard.html in Tor Browser."
 echo "The crawl runs every 2h (cti-crawl.timer); sources refresh weekly (cti-weekly.timer)."
 echo "To run one crawl now:  XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user start cti-crawl.service"
+echo
+echo "Optional: offline translation of non-English pages (Russian/Chinese/Korean/"
+echo "Arabic/Farsi/...) so foreign-language malware posts aren't missed:"
+echo "    cd $DEST && sh install-translation.sh"
