@@ -48,6 +48,8 @@ SOURCES_RUN   = 100          # source landing pages per run
 CHILD_BUDGET  = 140          # extra thread/listing/result pages per run
 CHILD_PER_SRC = 5           # max children followed from one page
 DEAD_SKIP      = 4          # skip a URL after this many straight failures
+DEAD_EMPTY     = 12         # demote a reachable source after this many empty (zero-finding) fetches
+HOT_FRAC       = 0.6        # share of each run reserved for proven producers (hits>0)
 NEW_WINDOW_H  = 36          # a finding is "new" if first seen within this many hours
 RETENTION_DAYS = 30         # drop findings not seen in this many days
 
@@ -125,6 +127,12 @@ TOKEN_CTX = re.compile(
     r"apikey|api.key|secret|hmac|\btx\b|txid|transaction|blockchain|block\s?hash|"
     r"confirmation|escrow|\bcommit\b|\bblob\b|gitlab|github|"
     r"\.(png|jpe?g|gif|css|js|svg|woff2?|ico|map|webp)\b", re.I)
+# hex that is a file-host download/share ID or torrent hash, not a malware sample hash
+# (warez forums are dense with these: rapidgator/rg.to/mega/... URL path IDs, magnet btih)
+URL_HEXID = re.compile(
+    r"rapidgator|rg\.to|mega(\.nz|\.io)?|mediafire|nitroflare|katfile|turbobit|uploaded\.|"
+    r"ddownload|dropbox|sendspace|gofile|pixeldrain|1fichier|fichier|filecrypt|"
+    r"magnet:|btih:|/file/|/files/|/download/|/dl/|/folder/", re.I)
 # known families / loaders / crypters / RAT / ransomware (feature 3)
 FAMILIES = [
     "RedLine", "LummaC2", "Lumma", "Vidar", "Raccoon", "StealC", "Meta Stealer",
@@ -172,7 +180,8 @@ def init_db():
     CREATE TABLE IF NOT EXISTS families(
         name TEXT PRIMARY KEY, hits INTEGER, first_seen REAL, last_seen REAL);
     CREATE TABLE IF NOT EXISTS crawl_state(k TEXT PRIMARY KEY, v TEXT);
-    CREATE TABLE IF NOT EXISTS crawled(url TEXT PRIMARY KEY, last REAL, status TEXT, fails INTEGER DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS crawled(url TEXT PRIMARY KEY, last REAL, status TEXT,
+        fails INTEGER DEFAULT 0, hits INTEGER DEFAULT 0, empty INTEGER DEFAULT 0);
     CREATE TABLE IF NOT EXISTS tokens(
         token TEXT, source_url TEXT, source_name TEXT, category TEXT, context TEXT,
         first_seen REAL, last_seen REAL, PRIMARY KEY(token, source_url));
@@ -181,6 +190,11 @@ def init_db():
         c.execute("ALTER TABLE exes ADD COLUMN family TEXT")
     except Exception:
         pass
+    for _col in ("hits", "empty"):                     # per-source yield tracking (migration)
+        try:
+            c.execute("ALTER TABLE crawled ADD COLUMN %s INTEGER DEFAULT 0" % _col)
+        except Exception:
+            pass
     c.commit()
     return c
 
@@ -244,8 +258,62 @@ def read_only_get(url):
 # Telegram bot token = live infostealer C2 (bot_id:35-char base64url)
 BOT_TOKEN = re.compile(r"(?<![\w:])([0-9]{8,10}:[A-Za-z0-9_-]{35})(?![\w-])")
 
-def mine(text):
-    """Return (hashes, exes, families). hashes:[(hash,htype,ctx,fam,context)]."""
+# ---- offline translation (Argos) so non-English malware pages aren't under-scored ----
+# A Cyrillic/CJK/Arabic page whose wording is not in CTX_RU / CTX_INTL would be dropped
+# by the keyword filter. When that happens we translate a bounded slice to English with
+# Argos (installed packages: ar zh fr it ko fa ru es -> en) and re-test context. Fully
+# offline, CPU-only, byte- and per-run-budget-capped so a slow VM can't be swamped.
+_SCRIPTS = [
+    ("ru", re.compile(r"[Ѐ-ӿ]")),   # Cyrillic
+    ("zh", re.compile(r"[一-鿿]")),   # Han
+    ("ko", re.compile(r"[가-힣]")),   # Hangul
+    ("ar", re.compile(r"[؀-ۿ]")),   # Arabic / Farsi
+]
+TRANSLATE_CHARS   = 1200    # max chars translated per page (bounds per-page CPU)
+MAX_TRANSLATE_RUN = 20      # max pages translated per crawl run (hard CPU ceiling)
+_argos = {"ready": None, "langs": {}, "budget": MAX_TRANSLATE_RUN}
+
+def _argos_load():
+    if _argos["ready"] is not None:
+        return _argos["ready"]
+    try:
+        import argostranslate.translate as at
+        for l in at.get_installed_languages():
+            _argos["langs"][l.code] = l
+        _argos["ready"] = ("en" in _argos["langs"]) and len(_argos["langs"]) > 1
+    except Exception:
+        _argos["ready"] = False
+    return _argos["ready"]
+
+def _guess_lang(s):
+    """Source language = the non-latin script densest in the sample, if present at all."""
+    sample = s[:1500]
+    best, bestn = None, 0
+    for code, rx in _SCRIPTS:
+        n = len(rx.findall(sample))
+        if n > bestn:
+            best, bestn = code, n
+    return best if bestn >= 8 else None
+
+def translate_en(text):
+    """Translate a bounded slice of non-English text to English, offline. '' on any
+    failure, nothing to translate, or exhausted per-run budget."""
+    if _argos["budget"] <= 0 or not _argos_load():
+        return ""
+    src = _guess_lang(text)
+    if not src or src not in _argos["langs"] or "en" not in _argos["langs"]:
+        return ""
+    try:
+        _argos["budget"] -= 1
+        tr = _argos["langs"][src].get_translation(_argos["langs"]["en"])
+        return tr.translate(text[:TRANSLATE_CHARS]) or ""
+    except Exception:
+        return ""
+
+def mine(text, force_ctx=False):
+    """Return (hashes, exes, families). hashes:[(hash,htype,ctx,fam,context)].
+    force_ctx=True when the page as a whole is confirmed malware-related (e.g. via
+    translation): per-finding context gates are then satisfied page-wide."""
     clean = WS_RE.sub(" ", TAG_RE.sub(" ", text))
     low = clean.lower()
     hashes, seen = [], set()
@@ -257,9 +325,9 @@ def mine(text):
             seen.add(h)
             i = low.find(h)
             ctx = clean[max(0, i - 90): i + len(h) + 90].strip()
-            if TOKEN_CTX.search(ctx):               # csrf / cache key / session / asset buster
+            if TOKEN_CTX.search(ctx) or URL_HEXID.search(ctx):   # web token / file-host ID
                 continue
-            is_mal = _mal_ctx(ctx)
+            is_mal = force_ctx or _mal_ctx(ctx)
             if htype in ("md5", "sha1") and not is_mal:   # short hashes need malware context
                 continue
             fam = FAMILY_RE.search(ctx)
@@ -273,7 +341,7 @@ def mine(text):
         if not fm:
             return None
         fc = _FAM_CANON.get(fm.group(1).lower())
-        if fc and fc.lower() in AMBIG_FAM and not _mal_ctx(window):
+        if fc and fc.lower() in AMBIG_FAM and not (force_ctx or _mal_ctx(window)):
             return None
         return fc
     for m in EXE_RE.finditer(clean):
@@ -282,7 +350,7 @@ def mine(text):
             continue
         i = m.start()
         ctx = clean[max(0, i - 90): i + len(ref) + 90]
-        if not _mal_ctx(ctx):
+        if not (force_ctx or _mal_ctx(ctx)):
             continue
         k = ref[:160]
         fam = _fam_near(ctx)
@@ -293,7 +361,7 @@ def mine(text):
         if not (SAMPLE_LINK.search(link) and not NOISE_RE.search(link)):
             continue
         em = re.search(r"\.([a-z0-9]{1,5})(?:\?|#|$)", link.lower())
-        if em and em.group(1) in EXE_AMBIG and not _mal_ctx(low):
+        if em and em.group(1) in EXE_AMBIG and not (force_ctx or _mal_ctx(low)):
             continue
         exes.setdefault(link[:200], None)
     fams = set()
@@ -304,14 +372,14 @@ def mine(text):
         if canon.lower() in AMBIG_FAM:
             i = x.start()
             fctx = clean[max(0, i - 100): i + len(x.group(1)) + 100]
-            if not _mal_ctx(fctx):
+            if not (force_ctx or _mal_ctx(fctx)):
                 continue
         fams.add(canon)
     if ACTOR_RE is not None:
         for am in ACTOR_RE.finditer(clean):
             ai = am.start()
             aw = clean[max(0, ai - 100): ai + len(am.group(1)) + 100]
-            if _mal_ctx(aw):
+            if force_ctx or _mal_ctx(aw):
                 fams.add(_ACTOR_CANON.get(am.group(1).lower(), am.group(1)))
     return hashes, exes, fams
 
@@ -344,28 +412,51 @@ def child_links(text, base, is_search):
 
 
 def pick_slice(c, targets):
-    """Round-robin across categories so every run samples the hash-bearing
-    clearnet sources (threat-actor telegram, forums) first, not whatever a
-    single linear offset lands on. Dead URLs (>=DEAD_SKIP straight failures)
-    are skipped. Each category keeps its own offset and advances per run."""
-    dead = {r[0] for r in c.execute("SELECT url FROM crawled WHERE fails>=?", (DEAD_SKIP,))}
+    """Yield-ranked selection. The 2k-source list becomes a ranked list:
+
+      1. Proven producers (hits>0, not demoted) are crawled EVERY run, best first,
+         up to HOT_FRAC of the budget - active channels keep posting new samples.
+      2. The remaining budget round-robins across categories (telegram_ta, forums
+         first) so discovery continues and offline sources get periodic rechecks.
+      3. Within each category, live-but-empty sources sink to the back and ones
+         empty for DEAD_EMPTY+ successful fetches are demoted to the very tail.
+      4. Unreachable URLs (>=DEAD_SKIP straight failures) are skipped entirely.
+    """
+    stats = {r[0]: (r[1], r[2], r[3])                  # url -> (fails, hits, empty)
+             for r in c.execute("SELECT url,fails,hits,empty FROM crawled")}
+    def st(u):
+        return stats.get(u, (0, 0, 0))
+    dead = {u for u, (f, h, e) in stats.items() if f >= DEAD_SKIP}
+    live = [t for t in targets if t[2] not in dead] or list(targets)
+
+    # (1) proven producers, reserved and re-crawled every run
+    sl, seen = [], set()
+    hot = sorted((t for t in live if st(t[2])[1] > 0 and st(t[2])[2] < DEAD_EMPTY),
+                 key=lambda t: -st(t[2])[1])
+    for t in hot[:int(SOURCES_RUN * HOT_FRAC)]:
+        if t[2] not in seen:
+            seen.add(t[2]); sl.append(t)
+    if len(sl) >= SOURCES_RUN:
+        return sl[:SOURCES_RUN]
+
+    # (2/3) round-robin the rest; demoted sources sink to each bucket's tail
     buckets = {}
-    for t in targets:
-        if t[2] in dead:
+    for t in live:
+        if t[2] in seen:
             continue
         buckets.setdefault(t[0], []).append(t)
-    if not buckets:
-        for t in targets:
-            buckets.setdefault(t[0], []).append(t)
-    order = ([cat for cat in CAT_ORDER if cat in buckets] + [cat for cat in buckets if cat not in CAT_ORDER])
+    for cat in buckets:
+        buckets[cat].sort(key=lambda t: (st(t[2])[2] >= DEAD_EMPTY, st(t[2])[2]))
+    order = ([cat for cat in CAT_ORDER if cat in buckets] +
+             [cat for cat in buckets if cat not in CAT_ORDER])
     if not order:
-        return targets[:SOURCES_RUN]
+        return sl[:SOURCES_RUN] or live[:SOURCES_RUN]
+    bucket_urls = {cat: {t[2] for t in lst} for cat, lst in buckets.items()}
     row = c.execute("SELECT v FROM crawl_state WHERE k='offsets'").fetchone()
     try:
         offs = json.loads(row[0]) if (row and row[0]) else {}
     except Exception:
         offs = {}
-    sl, seen = [], set()
     maxlen = max(len(v) for v in buckets.values())
     cyc = 0
     while len(sl) < SOURCES_RUN and cyc < maxlen:
@@ -373,22 +464,32 @@ def pick_slice(c, targets):
             if len(sl) >= SOURCES_RUN:
                 break
             lst = buckets[cat]
-            o = (int(offs.get(cat, 0)) + cyc) % len(lst)
-            t = lst[o]
+            if not lst:
+                continue
+            t = lst[(int(offs.get(cat, 0)) + cyc) % len(lst)]
             if t[2] in seen:
                 continue
-            seen.add(t[2])
-            sl.append(t)
+            seen.add(t[2]); sl.append(t)
         cyc += 1
-    for cat in order:
-        consumed = sum(1 for t in sl if t[0] == cat)
+    for cat in order:                                  # advance only over round-robin picks
+        consumed = sum(1 for t in sl if t[2] in bucket_urls[cat])
         offs[cat] = (int(offs.get(cat, 0)) + consumed) % max(len(buckets[cat]), 1)
     c.execute("INSERT OR REPLACE INTO crawl_state VALUES('offsets',?)", (json.dumps(offs),))
-    return sl
+    return sl[:SOURCES_RUN]
 
 
 def store_page(c, url, name, cat, text, now):
-    hashes, exes, fams = mine(text)
+    clean0 = WS_RE.sub(" ", TAG_RE.sub(" ", text))
+    # Page-wide context admission (force_ctx) is reserved for a NON-ENGLISH page that the
+    # keyword filters missed and translation then confirms as malware. English pages keep
+    # strict per-finding local context, so a warez/"nulled" forum can't flip every hex
+    # string on the page into a sample hash.
+    page_mal = False
+    if not _mal_ctx(clean0) and _guess_lang(clean0):   # dict miss on a non-English page ...
+        tr = translate_en(clean0)                      # ... translate (offline) and re-test
+        if tr and _mal_ctx(tr):
+            page_mal = True
+    hashes, exes, fams = mine(text, page_mal)
     page_fam = next(iter(fams)) if len(fams) == 1 else None
     for h, htype, ctx, fam, context in hashes:
         fam = fam or page_fam
@@ -418,12 +519,22 @@ def store_page(c, url, name, cat, text, now):
     return len(hashes), len(exes), fams
 
 
-def record(c, url, now, status):
+def record(c, url, now, status, found=0):
+    """Track reachability (fails) and yield: hits = cumulative findings from this URL,
+    empty = consecutive successful fetches that produced nothing. pick_slice() uses
+    both to front-load proven producers and demote live-but-empty sources."""
     if status == "ok":
-        c.execute("INSERT INTO crawled VALUES(?,?,?,0) ON CONFLICT(url) DO UPDATE SET last=?, status='ok', fails=0",
-                  (url, now, "ok", now))
+        if found > 0:
+            c.execute("INSERT INTO crawled(url,last,status,fails,hits,empty) VALUES(?,?,'ok',0,?,0) "
+                      "ON CONFLICT(url) DO UPDATE SET last=?, status='ok', fails=0, hits=hits+?, empty=0",
+                      (url, now, found, now, found))
+        else:
+            c.execute("INSERT INTO crawled(url,last,status,fails,hits,empty) VALUES(?,?,'ok',0,0,1) "
+                      "ON CONFLICT(url) DO UPDATE SET last=?, status='ok', fails=0, empty=empty+1",
+                      (url, now, now))
     else:
-        c.execute("INSERT INTO crawled VALUES(?,?,?,1) ON CONFLICT(url) DO UPDATE SET last=?, status=?, fails=fails+1",
+        c.execute("INSERT INTO crawled(url,last,status,fails,hits,empty) VALUES(?,?,?,1,0,0) "
+                  "ON CONFLICT(url) DO UPDATE SET last=?, status=?, fails=fails+1",
                   (url, now, status, now, status))
 
 
@@ -447,12 +558,13 @@ def main():
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
         for (cat, name, url, is_search), text, err in (f.result() for f in
                 as_completed([ex.submit(fetch, t) for t in sl])):
-            record(c, url, now, err or "ok")
             if not text:
+                record(c, url, now, err or "ok")
                 continue
             pages += 1
             a, b, _ = store_page(c, url, name, cat, text, now)
             hh += a; ee += b
+            record(c, url, now, "ok", a + b)
             for ku in child_links(text, to_fetchable(url), is_search):
                 if ku not in {k[0] for k in kids}:
                     kids.append((ku, name, cat))
@@ -466,12 +578,13 @@ def main():
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
         for (ku, name, cat), text, err in (f.result() for f in
                 as_completed([ex.submit(fetch_k, k) for k in kids])):
-            record(c, ku, now, err or "ok")
             if not text:
+                record(c, ku, now, err or "ok")
                 continue
             pages += 1
             a, b, _ = store_page(c, ku, name or "(followed)", cat, text, now)
             hh += a; ee += b
+            record(c, ku, now, "ok", a + b)
     sweep(c, now)
     c.commit()
     export(c, len(targets), pages)
