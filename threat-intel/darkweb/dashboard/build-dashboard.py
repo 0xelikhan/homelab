@@ -68,6 +68,29 @@ def cached(name, interval_h, compute):
         pass
     return data, iso[:16].replace("T", " ")
 
+def rl_group_map():
+    """family/group name -> ransomware.live profile URL (cached 24h over Tor)."""
+    data, _ = cached("rl-groups", 24, lambda: fetch_json("https://api.ransomware.live/v2/groups"))
+    m = {}
+    if isinstance(data, list):
+        for grp in data:
+            if not isinstance(grp, dict):
+                continue
+            u = grp.get("url") or ""
+            if not u:
+                continue
+            nm = (grp.get("name") or "").strip().lower()
+            if nm:
+                m.setdefault(nm, u)
+            alt = grp.get("altname")
+            if isinstance(alt, str):
+                for a in re.split(r"[,/|]", alt):
+                    a = a.strip().lower()
+                    if a:
+                        m.setdefault(a, u)
+    return m
+
+
 # ---------- dark-web malware early-warning (hashes + executables) ----------
 def malware_block():
     """Primary panel: hashes + executables mined by the read-only crawler from all dark-web sources."""
@@ -112,11 +135,18 @@ def malware_block():
     exblock = (f'<details open><summary>Executables</summary>'
                f'<ul class="dir">{"".join(exrows)}</ul></details>' if exrows else '')
 
-    fams = d.get("families", [])
+    fams = d.get("sample_families", [])
     famline = ''
     if fams:
-        tags = " ".join((('<span class="newb">NEW</span> ' if x.get("new") else '')
-                         + f'<span class="famb">{html.escape(x["name"])}</span>') for x in fams[:30])
+        gmap = rl_group_map()
+        def _flink(nm):
+            u = gmap.get(nm.lower())
+            return u or ("https://malpedia.caad.fkie.fraunhofer.de/search?q=" + nm.replace(" ", "+"))
+        tags = " ".join(
+            (('<span class="newb">NEW</span> ' if x.get("new") else '')
+             + f'<a href="{html.escape(_flink(x["name"]), quote=True)}" target="_blank" rel="noreferrer">'
+               f'<span class="famb">{html.escape(x["name"])} <span class="x">{x.get("count", 0)}</span></span></a>')
+            for x in fams[:30])
         famline = f'<div class="fams">{tags}</div>'
 
     tkrows = []

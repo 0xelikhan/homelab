@@ -168,7 +168,7 @@ def init_db():
         PRIMARY KEY(hash, source_url));
     CREATE TABLE IF NOT EXISTS exes(
         ref TEXT, source_url TEXT, source_name TEXT, category TEXT,
-        first_seen REAL, last_seen REAL, PRIMARY KEY(ref, source_url));
+        first_seen REAL, last_seen REAL, family TEXT, PRIMARY KEY(ref, source_url));
     CREATE TABLE IF NOT EXISTS families(
         name TEXT PRIMARY KEY, hits INTEGER, first_seen REAL, last_seen REAL);
     CREATE TABLE IF NOT EXISTS crawl_state(k TEXT PRIMARY KEY, v TEXT);
@@ -177,6 +177,10 @@ def init_db():
         token TEXT, source_url TEXT, source_name TEXT, category TEXT, context TEXT,
         first_seen REAL, last_seen REAL, PRIMARY KEY(token, source_url));
     """)
+    try:
+        c.execute("ALTER TABLE exes ADD COLUMN family TEXT")
+    except Exception:
+        pass
     c.commit()
     return c
 
@@ -263,9 +267,15 @@ def mine(text):
             if fam_c and fam_c.lower() in AMBIG_FAM and not is_mal:
                 fam_c = None
             hashes.append((h, htype, is_mal, fam_c, ctx[:200]))
-    exes = set()
-    # bare filename tokens: must sit in malware context; ambiguous extensions
-    # (.cmd/.img/.bin/.sys) only ever count with context (kills JS/CSS tokens)
+    exes = {}
+    def _fam_near(window):
+        fm = FAMILY_RE.search(window)
+        if not fm:
+            return None
+        fc = _FAM_CANON.get(fm.group(1).lower())
+        if fc and fc.lower() in AMBIG_FAM and not _mal_ctx(window):
+            return None
+        return fc
     for m in EXE_RE.finditer(clean):
         ref = m.group(1)
         if NOISE_RE.search(ref):
@@ -274,9 +284,10 @@ def mine(text):
         ctx = clean[max(0, i - 90): i + len(ref) + 90]
         if not _mal_ctx(ctx):
             continue
-        exes.add(ref[:160])
-    # real download links ending in a sample extension: strong signal kept,
-    # but ambiguous extensions in a link still need malware context on the page
+        k = ref[:160]
+        fam = _fam_near(ctx)
+        if k not in exes or (fam and not exes[k]):
+            exes[k] = fam
     for m in HREF_RE.finditer(text):
         link = m.group(1)
         if not (SAMPLE_LINK.search(link) and not NOISE_RE.search(link)):
@@ -284,7 +295,7 @@ def mine(text):
         em = re.search(r"\.([a-z0-9]{1,5})(?:\?|#|$)", link.lower())
         if em and em.group(1) in EXE_AMBIG and not _mal_ctx(low):
             continue
-        exes.add(link[:200])
+        exes.setdefault(link[:200], None)
     fams = set()
     for x in FAMILY_RE.finditer(clean):
         canon = _FAM_CANON.get(x.group(1).lower())
@@ -302,7 +313,7 @@ def mine(text):
             aw = clean[max(0, ai - 100): ai + len(am.group(1)) + 100]
             if _mal_ctx(aw):
                 fams.add(_ACTOR_CANON.get(am.group(1).lower(), am.group(1)))
-    return hashes, sorted(exes), fams
+    return hashes, exes, fams
 
 
 def child_links(text, base, is_search):
@@ -378,16 +389,20 @@ def pick_slice(c, targets):
 
 def store_page(c, url, name, cat, text, now):
     hashes, exes, fams = mine(text)
+    page_fam = next(iter(fams)) if len(fams) == 1 else None
     for h, htype, ctx, fam, context in hashes:
+        fam = fam or page_fam
         c.execute(
             "INSERT INTO hashes VALUES(?,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(hash,source_url) DO UPDATE SET last_seen=?, "
             "malware_ctx=max(malware_ctx,?), family=COALESCE(family,?)",
             (h, htype, url, name, cat, int(ctx), fam, context, now, now, now, int(ctx), fam))
-    for ref in exes:
-        c.execute("INSERT INTO exes VALUES(?,?,?,?,?,?) "
-                  "ON CONFLICT(ref,source_url) DO UPDATE SET last_seen=?",
-                  (ref, url, name, cat, now, now, now))
+    for ref, efam in exes.items():
+        efam = efam or page_fam
+        c.execute("INSERT INTO exes(ref,source_url,source_name,category,first_seen,last_seen,family) "
+                  "VALUES(?,?,?,?,?,?,?) "
+                  "ON CONFLICT(ref,source_url) DO UPDATE SET last_seen=?, family=COALESCE(family,?)",
+                  (ref, url, name, cat, now, now, efam, now, efam))
     for f in fams:
         c.execute("INSERT INTO families VALUES(?,?,?,?) "
                   "ON CONFLICT(name) DO UPDATE SET hits=hits+1, last_seen=?",
@@ -507,12 +522,12 @@ def export(c, n_sources, pages):
     erows = []
     for r in c.execute(
             "SELECT ref,group_concat(DISTINCT source_url),group_concat(DISTINCT source_name),"
-            "min(first_seen),max(last_seen),count(DISTINCT source_url) FROM exes GROUP BY ref "
+            "min(first_seen),max(last_seen),count(DISTINCT source_url),max(family) FROM exes GROUP BY ref "
             "ORDER BY (min(first_seen)>=%f) DESC, max(last_seen) DESC LIMIT 400" % newcut):
         erows.append({"ref": r[0], "links": [u for u in (r[1] or "").split(",") if u][:4],
                       "sources": [s for s in (r[2] or "").split(",") if s][:3],
                       "new": bool(r[3] and r[3] >= newcut),
-                      "last": iso(r[4]), "site_count": r[5]})
+                      "last": iso(r[4]), "site_count": r[5], "family": r[6]})
     fams = [{"name": r[0], "hits": r[1], "last": iso(r[2]), "new": bool(r[3] and r[3] >= newcut)}
             for r in c.execute("SELECT name,hits,last_seen,first_seen FROM families "
                                "ORDER BY (first_seen>=%f) DESC, last_seen DESC LIMIT 40" % newcut)]
@@ -524,12 +539,20 @@ def export(c, n_sources, pages):
         trows.append({"token": r[0], "links": [u for u in (r[1] or "").split(",") if u][:3],
                       "sources": [s for s in (r[2] or "").split(",") if s][:3],
                       "new": bool(r[3] and r[3] >= newcut), "last": iso(r[4]), "site_count": r[5]})
+    newfams = {x[0] for x in c.execute("SELECT name FROM families WHERE first_seen>=?", (newcut,))}
+    famcount = {}
+    for x in c.execute("SELECT family,count(DISTINCT hash) FROM hashes WHERE family IS NOT NULL AND family!='' GROUP BY family"):
+        famcount[x[0]] = famcount.get(x[0], 0) + x[1]
+    for x in c.execute("SELECT family,count(DISTINCT ref) FROM exes WHERE family IS NOT NULL AND family!='' GROUP BY family"):
+        famcount[x[0]] = famcount.get(x[0], 0) + x[1]
+    sample_fams = sorted(({"name": k, "count": v, "new": k in newfams} for k, v in famcount.items()),
+                         key=lambda z: (-z["count"], z["name"]))[:40]
     out = {"generated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
            "sources_total": n_sources, "sites_with_data": sites_ok,
            "hash_count": len(hrows), "new_hashes": sum(1 for h in hrows if h["new"]),
            "context_hits": sum(1 for h in hrows if h["malware_context"]),
            "exe_count": len(erows), "new_exes": sum(1 for e in erows if e["new"]),
-           "families": fams, "hashes": hrows, "executables": erows, "token_count": len(trows), "tokens": trows}
+           "families": fams, "sample_families": sample_fams, "hashes": hrows, "executables": erows, "token_count": len(trows), "tokens": trows}
     json.dump(out, open(OUT, "w"), indent=2)
 
 
