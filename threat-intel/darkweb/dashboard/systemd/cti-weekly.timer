@@ -1,0 +1,7 @@
+[Unit]
+Description=Weekly dark-web source-list refresh
+[Timer]
+OnCalendar=weekly
+Persistent=true
+[Install]
+WantedBy=timers.target

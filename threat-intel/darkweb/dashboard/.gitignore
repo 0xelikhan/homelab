@@ -2,6 +2,12 @@ dashboard.html
 onion-status.json
 telegram.json
 seen.json
+matkap.json
+malware-findings.db
+malware-findings.json
 iocs/
 deepdarkCTI/
 paste.txt
+__pycache__/
+*.pyc
+*.bak*

@@ -68,6 +68,70 @@ def cached(name, interval_h, compute):
         pass
     return data, iso[:16].replace("T", " ")
 
+# ---------- dark-web malware early-warning (hashes + executables) ----------
+def malware_block():
+    """Primary panel: hashes + executables mined by the read-only crawler from all dark-web sources."""
+    path = os.path.join(HERE, "malware-findings.json")
+    try:
+        d = json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return '<div class="mw"><p class="x">No findings yet.</p></div>'
+
+    def srclinks(links, names):
+        out = []
+        for i, u in enumerate(links[:3]):
+            lbl = names[i] if (i < len(names) and names[i]) else (u[:22] + "…")
+            out.append(f'<a href="{html.escape(u)}">{html.escape(lbl)}</a>')
+        return " ".join(out) or '<span class="x">?</span>'
+
+    def badges(f):
+        b = '<span class="newb">NEW</span> ' if f.get("new") else ''
+        tier = f.get("tier")
+        if tier == "high":
+            b += '<span class="tierh">high</span> '
+        elif tier == "med":
+            b += '<span class="tierm">med</span> '
+        if f.get("family"):
+            b += f'<span class="famb">{html.escape(f["family"])}</span>'
+        return b.strip()
+
+    rows = []
+    for f in d.get("hashes", [])[:120]:
+        rows.append(f'<tr><td class="mono">{html.escape(f["hash"])}</td><td>{f["type"]}</td>'
+                    f'<td>{badges(f)}</td><td class="d">{html.escape(f.get("last",""))}</td>'
+                    f'<td class="src">{srclinks(f.get("source_links",[]), f.get("sources",[]))}</td></tr>')
+    htable = "".join(rows) or '<tr><td colspan="5" class="x">No hashes yet.</td></tr>'
+
+    exrows = []
+    for e in d.get("executables", [])[:80]:
+        links = e.get("links", [])
+        ref = html.escape(e["ref"][:72])
+        linked = f'<a href="{html.escape(links[0])}">{ref}</a>' if links else ref
+        nb = '<span class="newb">NEW</span> ' if e.get("new") else ''
+        exrows.append(f'<li>{nb}{linked} <span class="x">({e.get("site_count",1)} site, {html.escape(e.get("last",""))})</span></li>')
+    exblock = (f'<details open><summary>Executables</summary>'
+               f'<ul class="dir">{"".join(exrows)}</ul></details>' if exrows else '')
+
+    fams = d.get("families", [])
+    famline = ''
+    if fams:
+        tags = " ".join((('<span class="newb">NEW</span> ' if x.get("new") else '')
+                         + f'<span class="famb">{html.escape(x["name"])}</span>') for x in fams[:30])
+        famline = f'<div class="fams">{tags}</div>'
+
+    tkrows = []
+    for t in d.get("tokens", [])[:60]:
+        nb = '<span class="newb">NEW</span> ' if t.get("new") else ''
+        tkrows.append(f'<li>{nb}<span class="mono">{html.escape(t["token"])}</span> '
+                      f'<span class="x">({t.get("site_count",1)} site, {html.escape(t.get("last",""))})</span> '
+                      f'{srclinks(t.get("links",[]), t.get("sources",[]))}</li>')
+    tkblock = (f'<details open><summary>Telegram bot C2 tokens</summary>'
+               f'<ul class="dir">{"".join(tkrows)}</ul></details>' if tkrows else '')
+    return ('<div class="mw">' + famline +
+            '<table><thead><tr><th>Hash</th><th>Type</th><th>Flag</th><th>Last seen</th><th>Found on</th></tr></thead>'
+            f'<tbody>{htable}</tbody></table>{exblock}{tkblock}</div>')
+
+
 # ---------- live ransomware feed + new-since-last ----------
 def live_victims():
     rows, errs = [], []
@@ -169,12 +233,11 @@ def category_block(key, cat):
     dead = [e for e in cat["entries"] if e["status"] not in ACTIVE]
     inner = f'<ul class="dir">\n{entry_rows(act)}\n</ul>'
     if dead:
-        inner += f'<details class="dead"><summary>inactive / unverified ({len(dead)})</summary><ul class="dir">\n{entry_rows(dead)}\n</ul></details>'
+        dr = "\n".join(f'<li><span class="b" style="color:#6e7681">OFFLINE</span> {html.escape(e["name"][:80])}</li>' for e in dead)
+        inner += f'<details class="dead"><summary>offline / unverified ({len(dead)})</summary><ul class="dir">\n{dr}\n</ul></details>'
     return (f'<details id="{key}"><summary>{html.escape(cat["title"])} '
             f'<span class="c">{cat["active"]} active / {cat["total"]}</span></summary>\n{inner}\n</details>')
 
-victims, errs = live_victims()
-new_count = mark_new(victims)
 pin_status, pin_checked = cached("onion-status", ONION_INTERVAL_H,
     lambda: [list(x) for x in ThreadPoolExecutor(max_workers=4).map(lambda p: (p[0], p[1], onion_up(p[1])), PINNED)])
 tg_data, tg_checked = cached("telegram", TG_INTERVAL_H,
@@ -187,7 +250,7 @@ def vrow(v):
     return (f'<tr><td class="d">{nb}{html.escape(v["date"])}</td><td class="g">{html.escape(v["group"][:24])}</td>'
             f'<td>{html.escape(v["title"][:60])}</td><td class="d">{html.escape(v["country"])}</td>'
             f'<td class="src">{srcs}</td></tr>')
-vrows = "\n".join(vrow(v) for v in victims) or '<tr><td colspan="5">No live data this refresh.</td></tr>'
+# ransomware leak-site feed removed (board is now malware-indicator focused)
 
 def pin_row(name, url, up):
     dot = '<span style="color:#3fb950">&#9679; live</span>' if up else '<span style="color:#f85149">&#9679; down now</span>'
@@ -203,8 +266,7 @@ tgs = "\n".join(tg_block(d) for d in tg_data) or '<p class="x">No channels confi
 
 nav = " ".join(f'<a href="#{k}">{SRC[k]["title"].split(" - ")[0].split(" / ")[0]} ({SRC[k]["active"]})</a>' for k in SRC)
 cats = "\n".join(category_block(k, SRC[k]) for k in SRC)
-errnote = (f'<p class="err">Live feed note: {html.escape("; ".join(errs))}</p>' if errs else "")
-newnote = f' &mdash; <span class="new">{new_count} NEW</span> since last refresh' if new_count else ""
+malware_panel = malware_block()
 
 HTMLDOC = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -229,28 +291,27 @@ ul.dir{{list-style:none;margin:4px 0 8px;padding:0;columns:2;column-gap:28px}} u
 ul.tg{{margin:4px 0 8px;padding-left:18px;font-size:12px;color:#adbac7}} ul.tg li{{padding:2px 0}}
 .b{{font-size:10px;font-weight:700}} .c{{color:#6e7681;font-weight:400;font-size:12px}} .x{{color:#6e7681;font-size:11px}}
 .err{{color:#d29922;font-size:12px}} .foot{{color:#6e7681;font-size:11px;margin-top:30px;border-top:1px solid #21262d;padding-top:10px}}
+.mw{{background:#161b22;border:1px solid #30363d;border-left:3px solid #f85149;border-radius:6px;padding:4px 14px 10px;margin:6px 0 14px}}
+.mw .sub{{margin:6px 0 10px}} .ctxb{{background:#da3633;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
+.mono{{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;word-break:break-all;color:#e6edf3}}
+code{{background:#0d1117;border:1px solid #21262d;border-radius:4px;padding:1px 4px;font-size:11px;color:#79c0ff}}
+.newb{{background:#238636;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
+.famb{{background:#30363d;color:#d29922;font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #3d4350}}
+.fams{{margin:2px 0 10px}} .fams span{{margin:0 4px 5px 0;display:inline-block}}
+.tierh{{background:#da3633;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
+.tierm{{background:#9e6a03;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
 @media(max-width:700px){{ul.dir,.pin ul{{columns:1}}}}
 </style></head><body>
-<h1>CTI Research Dashboard</h1>
-<p class="sub">All traffic routed over Tor. Feed refreshed {now}. On any attack, <b>details</b> = ransomware.live writeup (reliable, has the screenshot) even when the gang onion is down.</p>
-{errnote}
-<h2>Pinned entry points &mdash; onion status checked {pin_checked} (every 12h)</h2>
-<div class="pin"><ul>
-{pins}
-</ul></div>
-<h2>Recent ransomware leak-site activity ({len(victims)}){newnote}</h2>
-<table><thead><tr><th>Discovered</th><th>Group</th><th>Victim</th><th>CC</th><th>Sources</th></tr></thead>
-<tbody>
-{vrows}
-</tbody></table>
-<h2>Telegram monitor &mdash; public channels, checked {tg_checked} (every 6h)</h2>
+<h1>Dark Web Monitoring</h1>
+{malware_panel}
+<h2>Telegram monitor</h2>
 {tgs}
 <h2>Source directory</h2>
 <div class="nav">{nav}</div>
 {cats}
-<p class="foot">Sources: fastfire/deepdarkCTI (GPL-3.0) + ransomware.live + RansomLook + Telegram public previews. Refresh: run refresh-all.sh (git-pulls the lists, rebuilds). Onion leak sites are DDoS-prone/slow (30-60s first load); use the clearnet <b>details</b> link. Telegram = public channels only (private/invite ones need a manual join).</p>
 </body></html>"""
+HTMLDOC = HTMLDOC.replace("—", "-").replace("–", "-")
 
 open(os.path.join(HERE, "dashboard.html"), "w", encoding="utf-8").write(HTMLDOC)
 up = sum(1 for _, _, s in pin_status if s)
-print(f"wrote dashboard.html | victims: {len(victims)} ({new_count} new) | onions live: {up}/{len(PINNED)} | tg channels: {len(tg_data)}")
+print(f"wrote dashboard.html | onions live: {up}/{len(PINNED)} | tg channels: {len(tg_data)}")

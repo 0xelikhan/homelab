@@ -1,0 +1,5 @@
+[Unit]
+Description=Weekly dark-web source-list refresh (deepdarkCTI + dashboard rebuild)
+[Service]
+Type=oneshot
+ExecStart=/bin/sh %h/Desktop/cti/weekly-maint.sh
