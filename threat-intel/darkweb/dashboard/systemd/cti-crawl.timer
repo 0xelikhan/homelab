@@ -1,0 +1,8 @@
+[Unit]
+Description=Periodic read-only dark-web malware crawl
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=2h
+Persistent=true
+[Install]
+WantedBy=timers.target

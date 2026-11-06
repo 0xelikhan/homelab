@@ -1,0 +1,5 @@
+[Unit]
+Description=Dark-web malware crawl (read-only) + dashboard rebuild
+[Service]
+Type=oneshot
+ExecStart=/bin/sh %h/Desktop/cti/cti-crawl.sh
