@@ -201,6 +201,8 @@ def init_db():
     CREATE TABLE IF NOT EXISTS tokens(
         token TEXT, source_url TEXT, source_name TEXT, category TEXT, context TEXT,
         first_seen REAL, last_seen REAL, PRIMARY KEY(token, source_url));
+    CREATE TABLE IF NOT EXISTS candidates(
+        url TEXT PRIMARY KEY, password TEXT, source_name TEXT, ts REAL);
     """)
     try:
         c.execute("ALTER TABLE exes ADD COLUMN family TEXT")
@@ -504,6 +506,32 @@ def pick_slice(c, targets):
     return sl[:SOURCES_RUN]
 
 
+# download links the triage step can actually fetch (direct sample links + a few file hosts)
+CAND_URL = re.compile(r'https?://[^\s"\'<>)]{6,400}', re.I)
+CAND_HOST = re.compile(r"pixeldrain\.com|gofile\.io|mega(?:\.nz|\.co\.nz)|mediafire|anonfiles|"
+                       r"\.(?:exe|dll|scr|sys|7z|zip|rar|gz|bin|img|iso|js|jse|vbs|ps1|bat|cmd|"
+                       r"hta|jar|apk|dex|elf|msi|cab|lnk|com)(?:\?|#|$)", re.I)
+CAND_PW = re.compile(r"(?:pass(?:word)?|pwd|\bpw\b|пароль|key)\s*[:=]\s*"
+                     r"[\"'`]?([^\s\"'`<>]{1,40})", re.I)
+# web infrastructure / CDN assets that look like fetchable files but are page scaffolding
+CAND_SKIP = re.compile(r"github|gstatic|googleapis|cloudflare|jsdelivr|cdnjs|unpkg|fontawesome|"
+                       r"jquery|bootstrap|react|/assets/|/static/|/vendor/|\.min\.|avatars?\.|"
+                       r"gravatar|w3\.org|schema\.org|s3\.amazonaws|wp-content|wp-includes", re.I)
+
+def store_candidates(c, text, clean, name, now):
+    """Record fetchable sample links + any password hint near them, for triage.py to pull."""
+    page_pw = [m.group(1) for m in CAND_PW.finditer(clean)][:3]
+    for m in CAND_URL.finditer(text):
+        u = m.group(0).rstrip('.,);\'"')
+        if not CAND_HOST.search(u) or CAND_SKIP.search(u):   # fetchable sample, not a CDN asset
+            continue
+        i = m.start()
+        win = text[max(0, i - 300): i + len(u) + 160]
+        pw = [x.group(1) for x in CAND_PW.finditer(win)] or page_pw
+        c.execute("INSERT OR IGNORE INTO candidates(url,password,source_name,ts) VALUES(?,?,?,?)",
+                  (u[:400], "\x1f".join(dict.fromkeys(pw))[:200], name, now))
+
+
 def store_page(c, url, name, cat, text, now):
     clean0 = WS_RE.sub(" ", TAG_RE.sub(" ", text))
     # Page-wide context admission (force_ctx) is reserved for a NON-ENGLISH page that the
@@ -516,6 +544,7 @@ def store_page(c, url, name, cat, text, now):
         if tr and _mal_ctx(tr):
             page_mal = True
     hashes, exes, fams = mine(text, page_mal)
+    store_candidates(c, text, clean0, name, now)        # fetchable sample links -> triage queue
     page_fam = next(iter(fams)) if len(fams) == 1 else None
     for h, htype, ctx, fam, context in hashes:
         fam = fam or page_fam

@@ -92,6 +92,19 @@ def rl_group_map():
 
 
 # ---------- dark-web malware early-warning (hashes + executables) ----------
+def verified_samples():
+    """Executables that triage.py pulled, statically verified as malicious, and parked in
+    ~/quarantine for the REs. Reads the triage table directly (triage runs before this)."""
+    import sqlite3
+    try:
+        c = sqlite3.connect(os.path.join(HERE, "malware-findings.db"))
+        return c.execute("SELECT sha256, source_name, filetype, known, family, last_seen "
+                         "FROM (SELECT *, ts AS last_seen FROM triage WHERE kept=1) "
+                         "ORDER BY last_seen DESC LIMIT 120").fetchall()
+    except Exception:
+        return []
+
+
 def malware_block():
     """Primary panel: hashes + executables mined by the read-only crawler from all dark-web sources."""
     path = os.path.join(HERE, "malware-findings.json")
@@ -126,12 +139,17 @@ def malware_block():
     htable = "".join(rows) or '<tr><td colspan="5" class="x">No hashes yet.</td></tr>'
 
     exrows = []
-    for e in d.get("executables", [])[:80]:
-        links = e.get("links", [])
-        ref = html.escape(e["ref"][:72])
-        linked = f'<a href="{html.escape(links[0])}">{ref}</a>' if links else ref
-        nb = '<span class="newb">NEW</span> ' if e.get("new") else ''
-        exrows.append(f'<li>{nb}{linked} <span class="x">({e.get("site_count",1)} site, {html.escape(e.get("last",""))})</span></li>')
+    for sha, src, ftype, known, fam, _ts in verified_samples():
+        kb = '<span class="knownb">KNOWN</span> ' if known else ''
+        famtxt = ''
+        try:
+            fl = json.loads(fam or "[]")
+            if fl:
+                famtxt = f' <span class="famb">{html.escape(str(fl[0]))}</span>'
+        except Exception:
+            pass
+        exrows.append(f'<li>{kb}<span class="mono">{html.escape((sha or "")[:20])}</span>{famtxt} '
+                      f'<span class="x">({html.escape((ftype or "")[:34])} · {html.escape((src or "?")[:24])})</span></li>')
     exblock = (f'<details open><summary>Executables</summary>'
                f'<ul class="dir">{"".join(exrows)}</ul></details>' if exrows else '')
 
@@ -326,6 +344,7 @@ ul.tg{{margin:4px 0 8px;padding-left:18px;font-size:12px;color:#adbac7}} ul.tg l
 .mono{{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;word-break:break-all;color:#e6edf3}}
 code{{background:#0d1117;border:1px solid #21262d;border-radius:4px;padding:1px 4px;font-size:11px;color:#79c0ff}}
 .newb{{background:#238636;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
+.knownb{{background:#6e5494;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
 .famb{{background:#30363d;color:#d29922;font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #3d4350}}
 .fams{{margin:2px 0 10px}} .fams span{{margin:0 4px 5px 0;display:inline-block}}
 .tierh{{background:#da3633;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
