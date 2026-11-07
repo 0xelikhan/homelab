@@ -76,6 +76,11 @@ _SAMPLE = (r"exe|dll|scr|sys|msi|ps1|psm1|vbs|vbe|jse|wsf|hta|bat|cmd|pif|lnk|ja
            r"apk|dex|elf|ko|bin|iso|img|vhd|7z|rar|dmg|deb|rpm|cab|ace|arj|docm|xlsm")
 EXE_RE      = re.compile(r"\b([\w\-]{1,60}\.(?:%s))\b" % _SAMPLE, re.I)
 SAMPLE_LINK = re.compile(r"\.(?:%s)(\?|#|$)" % _SAMPLE, re.I)
+# data-container extensions: on leak/ransomware channels these are VICTIM-DATA dumps, not
+# malware samples, so they only count when a malware family is named next to them.
+ARCHIVE_EXT = {"7z", "rar", "zip", "gz", "tar", "iso", "img", "cab", "ace", "arj", "z"}
+# split-archive parts (fs.part46.rar, x.r01, y.z15, a.7z.001): one dump fragmented into many
+MULTIPART_RE = re.compile(r"part\d+\.(?:rar|7z|zip)|\.r\d\d\b|\.z\d\d\b|\.7z\.\d+\b", re.I)
 HREF_RE     = re.compile(r'href=["\']([^"\']+)["\']', re.I)
 SRC_RE      = re.compile(r'src=["\']([^"\']+)["\']', re.I)
 NOISE_RE = re.compile(
@@ -126,6 +131,8 @@ TOKEN_CTX = re.compile(
     r"csrf|cache|nonce|\btoken\b|session|integrity|etag|anti.?cache|_wpnonce|"
     r"apikey|api.key|secret|hmac|\btx\b|txid|transaction|blockchain|block\s?hash|"
     r"confirmation|escrow|\bcommit\b|\bblob\b|gitlab|github|"
+    r"gravatar|/avatar/|imageobject|nodeid|node_id|parseint|zindex|wp-content|wp-includes|"
+    r"var\s+\w+\s*=|"
     r"\.(png|jpe?g|gif|css|js|svg|woff2?|ico|map|webp)\b", re.I)
 # hex that is a file-host download/share ID or torrent hash, not a malware sample hash
 # (warez forums are dense with these: rapidgator/rg.to/mega/... URL path IDs, magnet btih)
@@ -346,23 +353,31 @@ def mine(text, force_ctx=False):
         return fc
     for m in EXE_RE.finditer(clean):
         ref = m.group(1)
-        if NOISE_RE.search(ref):
+        if NOISE_RE.search(ref) or MULTIPART_RE.search(ref):   # web asset or split-archive part
             continue
         i = m.start()
         ctx = clean[max(0, i - 90): i + len(ref) + 90]
         if not (force_ctx or _mal_ctx(ctx)):
             continue
-        k = ref[:160]
         fam = _fam_near(ctx)
+        ext = ref.rsplit(".", 1)[-1].lower()
+        if ext in ARCHIVE_EXT and not fam:          # data-leak archive w/o a named family
+            continue
+        k = ref[:160]
         if k not in exes or (fam and not exes[k]):
             exes[k] = fam
     for m in HREF_RE.finditer(text):
         link = m.group(1)
         if not (SAMPLE_LINK.search(link) and not NOISE_RE.search(link)):
             continue
-        em = re.search(r"\.([a-z0-9]{1,5})(?:\?|#|$)", link.lower())
-        if em and em.group(1) in EXE_AMBIG and not (force_ctx or _mal_ctx(low)):
+        if MULTIPART_RE.search(link):               # split data archive (fs.part46.rar, .r01)
             continue
+        em = re.search(r"\.([a-z0-9]{1,5})(?:\?|#|$)", link.lower())
+        ext = em.group(1) if em else ""
+        if ext in EXE_AMBIG and not (force_ctx or _mal_ctx(low)):
+            continue
+        if ext in ARCHIVE_EXT and not (FAMILY_RE.search(low) and _mal_ctx(low)):
+            continue                                # archive link counts only w/ a family on the page
         exes.setdefault(link[:200], None)
     fams = set()
     for x in FAMILY_RE.finditer(clean):
