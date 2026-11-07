@@ -5,7 +5,7 @@
 | VM | 114 `nsm-sensor`, 2 cores, 4 GB RAM, Ubuntu 22.04 |
 | Group | `nsm` (off unless started) |
 | NIC 1 | Management, SOC VLAN |
-| NIC 2 | Capture only, no IP, on a bridge with no uplink |
+| NIC 2 | Capture only, no IP, on its own bridge `vmbr8` with no uplink |
 | Suricata | 8.0, ET Open rules, JA3 and JA4 on TLS, JA4 on QUIC |
 | Zeek | 8.0 with the FoxIO JA4+ package, JSON logs |
 
@@ -16,7 +16,7 @@ The Proxmox host copies pfSense's LAN interface (both directions) to the sensor'
 | Piece | Where | What it does |
 |---|---|---|
 | `nsm-mirror` | host, `/usr/local/sbin` | Sets up the mirror. Safe to rerun |
-| `nsm-mirror-hook.sh` | host, snippets storage | Hookscript on VMs 100 and 114, reruns the mirror after either starts |
+| `lab-hook.sh` | host, snippets storage | Hookscript on VMs 100 and 114, reruns the mirror after either starts |
 | `nsm-mirror.service` | host | Reruns the mirror at host boot |
 | `capture-nic.service` | sensor | Brings the capture NIC up, promiscuous, offloads off |
 
