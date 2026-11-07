@@ -126,6 +126,15 @@ except Exception:
     ACTOR_RE = None
 def _mal_ctx(s):
     return bool(CTX_RE.search(s) or CTX_RU.search(s) or CTX_INTL.search(s))
+# malware-TOOL language (builder/FUD/loader/crypted/RAT...) — the words actors DO use to
+# advertise a sample — vs stolen-DATA language (leak/database/records). Used to tell a
+# malware-sample archive from a victim-data dump: family attribution is a poor signal
+# because actors rarely name the family in their own posts, so we key on tool-context.
+TOOL_CTX = re.compile(
+    r"\b(build(?:er)?|stub|loader|crypt(?:er|or|ed)|pack(?:er|ed)|obfuscat|fud|"
+    r"undetect(?:able|ed)?|dropper|inject(?:or|ion|ed)?|payload|c2|c&c|keylog|\brat\b|"
+    r"botnet|miner|clipper|nulled|cracked|source\s?code|exploit\s?kit|trojan|backdoor|"
+    r"rootkit|\bworm\b|\bmalware\b)\b", re.I)
 # strings that look like a hash but are web tokens / cache-busters, not malware
 TOKEN_CTX = re.compile(
     r"csrf|cache|nonce|\btoken\b|session|integrity|etag|anti.?cache|_wpnonce|"
@@ -361,7 +370,9 @@ def mine(text, force_ctx=False):
             continue
         fam = _fam_near(ctx)
         ext = ref.rsplit(".", 1)[-1].lower()
-        if ext in ARCHIVE_EXT and not fam:          # data-leak archive w/o a named family
+        # an archive is a malware sample only with tool-context (or a family); otherwise it's
+        # a victim-data dump posted by a leak/ransomware channel.
+        if ext in ARCHIVE_EXT and not (fam or TOOL_CTX.search(ctx) or CTX_RU.search(ctx)):
             continue
         k = ref[:160]
         if k not in exes or (fam and not exes[k]):
@@ -376,8 +387,8 @@ def mine(text, force_ctx=False):
         ext = em.group(1) if em else ""
         if ext in EXE_AMBIG and not (force_ctx or _mal_ctx(low)):
             continue
-        if ext in ARCHIVE_EXT and not (FAMILY_RE.search(low) and _mal_ctx(low)):
-            continue                                # archive link counts only w/ a family on the page
+        if ext in ARCHIVE_EXT and not (FAMILY_RE.search(low) or TOOL_CTX.search(low) or CTX_RU.search(low)):
+            continue                                # archive link needs tool-context or a family on the page
         exes.setdefault(link[:200], None)
     fams = set()
     for x in FAMILY_RE.finditer(clean):
