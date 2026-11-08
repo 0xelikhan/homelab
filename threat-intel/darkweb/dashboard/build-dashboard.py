@@ -99,7 +99,7 @@ def verified_samples():
     import sqlite3
     try:
         c = sqlite3.connect(os.path.join(HERE, "malware-findings.db"))
-        return c.execute("SELECT sha256, source_name, filetype, known, family, last_seen "
+        return c.execute("SELECT sha256, source_name, filetype, known, family, reasons, caps, last_seen "
                          "FROM (SELECT *, ts AS last_seen FROM triage WHERE kept=1) "
                          "ORDER BY last_seen DESC LIMIT 120").fetchall()
     except Exception:
@@ -130,13 +130,23 @@ def malware_block():
         return " ".join(out) or '<span class="x">?</span>'
 
     exrows = []
-    for sha, src, ftype, known, fam, _ts in verified_samples():
-        kb = '<span class="knownb">KNOWN</span> ' if known else ''
+    for sha, src, ftype, known, fam, reasons, caps, _ts in verified_samples():
+        kb = ('<span class="knownb">KNOWN</span> ' if known else '<span class="newb">NEW</span> ')
         famtxt = ''
         try:
             fl = json.loads(fam or "[]")
             if fl:
                 famtxt = f' <span class="famb">{html.escape(str(fl[0]))}</span>'
+        except Exception:
+            pass
+        # verdict line: why it was kept (reasons) + top capa behaviours (the proof)
+        verdict = html.escape((reasons or "").replace(";", " · ")[:60])
+        capline = ''
+        try:
+            cl = json.loads(caps or "[]")
+            if cl:
+                capline = (' <span class="caps">capa: '
+                           + html.escape(" · ".join(c[:34] for c in cl[:6])) + '</span>')
         except Exception:
             pass
         qp = quarantine_path(sha or "")
@@ -147,6 +157,7 @@ def malware_block():
             qloc = '<span class="x">(pruned from quarantine)</span>'
         exrows.append(f'<li>{kb}<span class="mono">{html.escape((sha or "")[:20])}</span>{famtxt} '
                       f'<span class="x">({html.escape((ftype or "")[:34])} · {html.escape((src or "?")[:24])})</span>'
+                      f' <span class="vd">{verdict}</span>{capline}'
                       f'<br>{qloc}</li>')
     exblock = (f'<details open><summary>Executables</summary>'
                f'<ul class="dir exe">{"".join(exrows)}</ul></details>' if exrows else '')
@@ -335,6 +346,7 @@ details.dead{{background:transparent;border:0;margin:4px 0}} details.dead summar
 ul.dir{{list-style:none;margin:4px 0 8px;padding:0;columns:2;column-gap:28px}} ul.dir li{{break-inside:avoid;padding:1px 0;font-size:13px}}
 ul.exe{{columns:1}} ul.exe li{{padding:4px 0}}
 a.qf{{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#3fb950;word-break:break-all}}
+.vd{{color:#d29922;font-size:11px}} .caps{{color:#8b949e;font-size:10px;font-style:italic}}
 ul.tg{{margin:4px 0 8px;padding-left:18px;font-size:12px;color:#adbac7}} ul.tg li{{padding:2px 0}}
 .b{{font-size:10px;font-weight:700}} .c{{color:#6e7681;font-weight:400;font-size:12px}} .x{{color:#6e7681;font-size:11px}}
 .err{{color:#d29922;font-size:12px}} .foot{{color:#6e7681;font-size:11px;margin-top:30px;border-top:1px solid #21262d;padding-top:10px}}
