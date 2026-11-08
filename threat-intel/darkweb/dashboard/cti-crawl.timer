@@ -1,8 +1,9 @@
 [Unit]
-Description=Daily read-only dark-web malware crawl + known-feed pull
+Description=Dark-web malware crawl (every 3h); known-feed self-limits to ~1 pull/day
 
 [Timer]
-OnCalendar=*-*-* 06:00:00
+OnBootSec=5min
+OnUnitActiveSec=3h
 Persistent=true
 
 [Install]
