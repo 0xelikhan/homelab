@@ -17,7 +17,8 @@ named by sha256; prune() enforces retention + a total-size budget (oldest-first)
 
 SAFETY: samples are written and read as data only; nothing here ever executes them.
 """
-import os, re, json, time, sqlite3, hashlib, subprocess, shutil, sys, urllib.request, urllib.error, socket
+import os, re, json, time, sqlite3, hashlib, subprocess, shutil, sys
+import urllib.request, urllib.error, urllib.parse, socket
 
 HERE   = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -36,7 +37,7 @@ UA     = "cti-dashboard"
 MAX_FILE_MB      = 50
 BUDGET_MB        = 2048
 MAX_PULL_PER_RUN = 12
-RETENTION_DAYS   = 14
+RETENTION_HOURS  = 36         # keep samples ~36h so REs have a weekend's worth, VM stays lean
 FETCH_TIMEOUT    = 60
 CAPA_TIMEOUT     = 120
 CAPA_BIN   = os.path.expanduser("~/.local/bin/capa")
@@ -242,7 +243,7 @@ def prune(c):
         try: files.append((os.path.getmtime(p), os.path.getsize(p), p))
         except OSError: pass
     for mt, _s, p in files:
-        if mt < now - RETENTION_DAYS * 86400:
+        if mt < now - RETENTION_HOURS * 3600:
             try: os.remove(p)
             except OSError: pass
     files = sorted((x for x in files if os.path.exists(x[2])), key=lambda x: x[0])
@@ -332,6 +333,15 @@ def triage_one(c, path, url, src, passwords, depth=0):
         os.remove(path)                                 # false positive -> delete
         store(c, sha, url, src, size, desc, cat, 0, known, fam, reasons or ["benign"], caps, imp, ent, packed)
         return inner_kept
+    if not known:                                       # authoritative known/new via MalwareBazaar
+        info = mb_lookup(sha)                            # None=no key, {}=novel, {...}=known
+        if info:
+            known = 1
+            if info.get("family"):
+                fam = [info["family"]]
+            reasons = list(reasons) + ["mb:" + (info.get("family") or "known")]
+        elif info == {}:
+            reasons = list(reasons) + ["mb:novel"]      # confirmed not in MalwareBazaar
     _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed)
     return 1 + inner_kept
 
@@ -350,6 +360,109 @@ def intake_local(c):
             break
         kept += triage_one(c, p, "telegram://" + f, "telegram", [])
         c.commit()
+    return kept
+
+
+# --------------------------------------------------------------- known-malware intel (key-gated)
+KEYS_FILE    = os.path.expanduser("~/.cti-keys.json")   # {"abuse_ch":"...","malshare":"..."}
+KNOWN_INTAKE = os.path.expanduser("~/known-intake")
+FEED_PER_RUN = 15            # known samples to pull per run (bounded; 36h retention keeps VM lean)
+MB_API       = "https://mb-api.abuse.ch/api/v1/"
+
+
+def _keys():
+    try:
+        return json.load(open(KEYS_FILE, encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _mb_post(key, fields, timeout=40, raw=False):
+    data = urllib.parse.urlencode(fields).encode()
+    req = urllib.request.Request(MB_API, data=data,
+                                 headers={"Auth-Key": key, "User-Agent": "cti-dashboard"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        b = r.read(80 * 1024 * 1024)
+    return b if raw else json.loads(b)
+
+
+def mb_lookup(sha):
+    """MalwareBazaar get_info by hash: dict(family,first_seen,...) if KNOWN, {} if abuse.ch
+    has never seen it (NOVEL), None if no key / unreachable. No sample is uploaded."""
+    key = _keys().get("abuse_ch")
+    if not key:
+        return None
+    try:
+        d = _mb_post(key, {"query": "get_info", "hash": sha})
+    except Exception:
+        return None
+    st = d.get("query_status")
+    if st == "ok" and d.get("data"):
+        row = d["data"][0]
+        return {"family": row.get("signature") or "", "first_seen": row.get("first_seen") or "",
+                "imphash": row.get("imphash") or "", "tags": row.get("tags") or []}
+    if st == "hash_not_found":
+        return {}                                       # confirmed not in MalwareBazaar
+    return None
+
+
+def feed_known(c):
+    """Pull a bounded batch of recent KNOWN malware (MalwareBazaar + MalShare) into quarantine
+    through the normal triage path, so the board carries a current known-malware baseline.
+    Key-gated: with no ~/.cti-keys.json it is a clean no-op."""
+    keys = _keys()
+    if not keys:
+        return 0
+    os.makedirs(KNOWN_INTAKE, exist_ok=True)
+    kept = 0
+    mbk = keys.get("abuse_ch")
+    if mbk:
+        try:
+            recent = (_mb_post(mbk, {"query": "get_recent", "selector": "100"}, 60).get("data") or [])
+        except Exception:
+            recent = []
+        for row in recent[:FEED_PER_RUN]:
+            if quarantine_mb() >= BUDGET_MB:
+                break
+            sha = row.get("sha256_hash") or ""
+            if not sha or c.execute("SELECT 1 FROM triage_seen WHERE url=?", ("mb://" + sha,)).fetchone():
+                continue
+            _seen(c, "mb://" + sha)
+            zp = os.path.join(KNOWN_INTAKE, sha + ".zip")
+            try:
+                b = _mb_post(mbk, {"query": "get_file", "sha256_hash": sha}, 90, raw=True)
+            except Exception:
+                continue
+            if b[:2] != b"PK":                          # expected the password zip, got an error
+                continue
+            open(zp, "wb").write(b)
+            kept += triage_one(c, zp, "malwarebazaar://" + sha, "MalwareBazaar", ["infected"])
+            c.commit()
+    msk = keys.get("malshare")
+    if msk:
+        try:
+            lst = json.loads(urllib.request.urlopen(urllib.request.Request(
+                "https://malshare.com/api.php?api_key=%s&action=getlist" % msk,
+                headers={"User-Agent": "cti-dashboard"}), timeout=60).read())
+        except Exception:
+            lst = []
+        for row in (lst or [])[:FEED_PER_RUN]:
+            if quarantine_mb() >= BUDGET_MB:
+                break
+            sha = (row.get("sha256") if isinstance(row, dict) else "") or ""
+            if not sha or c.execute("SELECT 1 FROM triage_seen WHERE url=?", ("ms://" + sha,)).fetchone():
+                continue
+            _seen(c, "ms://" + sha)
+            fp = os.path.join(KNOWN_INTAKE, sha + ".bin")
+            try:
+                b = urllib.request.urlopen(urllib.request.Request(
+                    "https://malshare.com/api.php?api_key=%s&action=getfile&hash=%s" % (msk, sha),
+                    headers={"User-Agent": "cti-dashboard"}), timeout=90).read(80 * 1024 * 1024)
+            except Exception:
+                continue
+            open(fp, "wb").write(b)
+            kept += triage_one(c, fp, "malshare://" + sha, "MalShare", [])
+            c.commit()
     return kept
 
 
@@ -374,31 +487,22 @@ def main():
     for url, src, pw in candidates(c):
         if pulled >= MAX_PULL_PER_RUN or quarantine_mb() >= BUDGET_MB:
             break
-        durls = fetchers.resolve(url)
-        if not durls:
-            _seen(c, url); c.commit(); continue         # host we can't resolve (yet) -> skip
-        outcome = None                                  # 'ok' | 'definitive' | 'transient'
-        for durl in durls:
-            if pulled >= MAX_PULL_PER_RUN:
-                break
-            tmp = os.path.join(QDIR, ".incoming")
-            ok, size, err = fetch_capped(durl, tmp)
-            if ok:
-                pulled += 1
-                kept += triage_one(c, tmp, url, src, pw)
-                outcome = "ok"; c.commit(); continue
-            print("skip %s (%s)" % (durl[:50], err))
-            if outcome != "ok":
-                outcome = "definitive" if _definitive(err) else "transient"
-        # Only burn the candidate on a settled outcome; retry transient (flaky-Tor) failures.
-        if outcome in ("ok", "definitive"):
-            _seen(c, url)
-        elif outcome == "transient":
+        tmp = os.path.join(QDIR, ".incoming")
+        ok, size, err = fetchers.download(url, tmp, pw)  # resolve + fetch + decrypt, all hosts
+        if ok:
+            pulled += 1
+            kept += triage_one(c, tmp, url, src, pw)
+            _seen(c, url); c.commit(); continue
+        print("skip %s (%s)" % (url[:50], err))
+        if err == "unresolved" or err == "no-link" or _definitive(err):
+            _seen(c, url)                               # host we can't fetch, or dead link -> done
+        else:                                            # transient (flaky Tor) -> retry a few times
             n = (c.execute("SELECT n FROM triage_try WHERE url=?", (url,)).fetchone() or [0])[0] + 1
             c.execute("INSERT OR REPLACE INTO triage_try VALUES(?,?,?)", (url, n, time.time()))
             if n >= MAX_TRIES:
-                _seen(c, url)                           # give up after repeated transient failures
+                _seen(c, url)
         c.commit()
+    kept += feed_known(c)               # known-malware baseline feeds (MalwareBazaar/MalShare)
     prune(c); c.commit()
     print("triage: pulled=%d kept=%d quarantine=%.0fMB" % (pulled, kept, quarantine_mb()))
 

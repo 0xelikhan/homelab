@@ -151,8 +151,9 @@ def malware_block():
             pass
         qp = quarantine_path(sha or "")
         if qp:
-            qloc = (f'<a class="qf" href="file://{html.escape(qp, quote=True)}" '
-                    f'title="click to open, or copy this path on the box">&#128193; {html.escape(qp)}</a>')
+            folder = (os.path.dirname(qp) or QDIR) + "/"
+            qloc = (f'<a class="qf" href="file://{html.escape(folder, quote=True)}" '
+                    f'title="opens the quarantine folder - then select this file">&#128193; {html.escape(qp)}</a>')
         else:
             qloc = '<span class="x">(pruned from quarantine)</span>'
         exrows.append(f'<li>{kb}<span class="mono">{html.escape((sha or "")[:20])}</span>{famtxt} '
