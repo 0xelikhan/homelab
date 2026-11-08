@@ -509,8 +509,8 @@ def pick_slice(c, targets):
 # download links the triage step can actually fetch (direct sample links + a few file hosts)
 CAND_URL = re.compile(r'https?://[^\s"\'<>)]{6,400}', re.I)
 CAND_HOST = re.compile(r"pixeldrain\.com|gofile\.io|mega(?:\.nz|\.co\.nz)|mediafire|anonfiles|"
-                       r"\.(?:exe|dll|scr|sys|7z|zip|rar|gz|bin|img|iso|js|jse|vbs|ps1|bat|cmd|"
-                       r"hta|jar|apk|dex|elf|msi|cab|lnk)(?:\?|#|$)", re.I)   # no 'com' (domain-root collision)
+                       r"\.(?:exe|dll|scr|sys|7z|zip|rar|gz|bin|img|iso|vbs|ps1|bat|cmd|"
+                       r"hta|jar|apk|dex|elf|msi|cab|lnk)(?:\?|#|$)", re.I)   # no 'com'(domain),'js'(forum scaffolding)
 CAND_PW = re.compile(r"(?:pass(?:word)?|pwd|\bpw\b|пароль|key)\s*[:=]\s*"
                      r"[\"'`]?([^\s\"'`<>]{1,40})", re.I)
 # web infrastructure / CDN assets that look like fetchable files but are page scaffolding
