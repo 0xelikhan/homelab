@@ -285,9 +285,13 @@ def triage_one(c, path, url, src, passwords, depth=0):
         inner = fetchers.unpack(path, exdir, passwords)
         try: os.remove(path)
         except OSError: pass
+        nfiles = sum(1 for f in inner if os.path.isfile(f))
         kept = sum(triage_one(c, f, url, src, passwords, depth + 1)
                    for f in inner if os.path.isfile(f))
         shutil.rmtree(exdir, ignore_errors=True)        # drop leftover extracted junk
+        if kept == 0:                                   # auditable drop + content-dedup for next time
+            reason = "archive:%d-inner/0-exe" % nfiles if nfiles else "archive:unextractable"
+            store(c, sha, url, src, size, desc, "archive", 0, 0, [], reason, [], "", 0.0, 0)
         return kept
     cat = categorize(desc)
     if cat not in KEEP_EXE:                              # not an executable -> delete now
