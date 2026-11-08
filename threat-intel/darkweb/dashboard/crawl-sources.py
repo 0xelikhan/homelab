@@ -510,13 +510,15 @@ def pick_slice(c, targets):
 CAND_URL = re.compile(r'https?://[^\s"\'<>)]{6,400}', re.I)
 CAND_HOST = re.compile(r"pixeldrain\.com|gofile\.io|mega(?:\.nz|\.co\.nz)|mediafire|anonfiles|"
                        r"\.(?:exe|dll|scr|sys|7z|zip|rar|gz|bin|img|iso|js|jse|vbs|ps1|bat|cmd|"
-                       r"hta|jar|apk|dex|elf|msi|cab|lnk|com)(?:\?|#|$)", re.I)
+                       r"hta|jar|apk|dex|elf|msi|cab|lnk)(?:\?|#|$)", re.I)   # no 'com' (domain-root collision)
 CAND_PW = re.compile(r"(?:pass(?:word)?|pwd|\bpw\b|пароль|key)\s*[:=]\s*"
                      r"[\"'`]?([^\s\"'`<>]{1,40})", re.I)
 # web infrastructure / CDN assets that look like fetchable files but are page scaffolding
 CAND_SKIP = re.compile(r"github|gstatic|googleapis|cloudflare|jsdelivr|cdnjs|unpkg|fontawesome|"
                        r"jquery|bootstrap|react|/assets/|/static/|/vendor/|\.min\.|avatars?\.|"
-                       r"gravatar|w3\.org|schema\.org|s3\.amazonaws|wp-content|wp-includes", re.I)
+                       r"gravatar|w3\.org|schema\.org|s3\.amazonaws|wp-content|wp-includes|"
+                       r"b-cdn\.net|bunnycdn|google-analytics|googletagmanager|gtag/js|"
+                       r"\.(?:css|woff2?|ttf|svg|png|jpe?g|gif|ico|webp|map)(?:\?|#|$)", re.I)
 
 def store_candidates(c, text, clean, name, now):
     """Record fetchable sample links + any password hint near them, for triage.py to pull."""
