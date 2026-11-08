@@ -146,19 +146,14 @@ def malware_block():
     exrows = []
     for sha, src, ftype, known, fam, reasons, caps, _ts in verified_samples():
         kb = ('<span class="knownb">KNOWN</span> ' if known else '<span class="newb">NEW</span> ')
-        folder, samp, findings = quarantine_entry(sha or "")
+        folder, _samp, _find = quarantine_entry(sha or "")
         if folder:
-            diskpath = os.path.join(folder, samp) if samp else folder
-            qloc = (f'<a class="qf" href="{QBASE}/{html.escape(sha, quote=True)}/">'
-                    f'&#128193; {html.escape(diskpath)}</a>')
+            qloc = (f'<span class="qf">&#128193; {html.escape(folder.rstrip("/"))}/</span>'
+                    f'<span class="x"> (sample + findings.txt)</span>')
         else:
             qloc = '<span class="x">(pruned from quarantine)</span>'
-        why = ''
-        if findings:
-            why = (f'<details class="why"><summary>why flagged</summary>'
-                   f'<pre>{html.escape(findings)}</pre></details>')
         exrows.append(f'<li>{kb}<span class="mono">{html.escape(sha or "")}</span>'
-                      f'<br>{qloc}{why}</li>')
+                      f'<br>{qloc}</li>')
     exblock = (f'<details open><summary>Executables</summary>'
                f'<ul class="dir exe">{"".join(exrows)}</ul></details>' if exrows else '')
 

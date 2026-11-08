@@ -296,9 +296,147 @@ def store(c, sha, url, src, size, desc, cat, keep, known, fam, reasons, caps, im
                json.dumps(caps), imp, ent, int(packed), time.time()))
 
 
-def write_findings(folder, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed):
+# crypto constant signatures (distinctive, low false positive): name -> magic bytes
+_CRYPTO_SIGS = [
+    ("AES s-box",        bytes.fromhex("637c777bf26b6fc53001672bfed7ab76")),
+    ("AES inverse s-box",bytes.fromhex("52096ad53036a538bf40a39e81f3d7fb")),
+    ("SHA-256 constants", bytes.fromhex("428a2f98713744918b")),
+    ("SHA-512 constants", bytes.fromhex("428a2f98d728ae22")),
+    ("MD5 init",          bytes.fromhex("0123456789abcdeffedcba9876543210")),
+    ("CRC32 table",       bytes.fromhex("00000000963007772c610eeeba51099919")),
+    ("base64 alphabet",   b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"),
+    ("base64 url alphabet", b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"),
+    ("ChaCha/Salsa20 sigma", b"expand 32-byte k"),
+    ("ChaCha/Salsa20 tau",   b"expand 16-byte k"),
+]
+
+
+def _crypto_constants(path):
+    try:
+        with open(path, "rb") as f:
+            b = f.read(40 * 1024 * 1024)
+    except Exception:
+        return []
+    out = []
+    for name, sig in _CRYPTO_SIGS:
+        i = b.find(sig)
+        if i >= 0:
+            out.append("%s at 0x%x" % (name, i))
+    return out
+
+
+def _pe_tls(path):
+    try:
+        import pefile
+        pe = pefile.PE(path, fast_load=True)
+        pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_TLS"]])
+        tls = getattr(pe, "DIRECTORY_ENTRY_TLS", None)
+        return bool(tls and tls.struct and tls.struct.AddressOfCallBacks)
+    except Exception:
+        return False
+
+
+def _pe_cert(path):
+    """Authenticode signer: (subject_cn, issuer_cn, serial_hex) or None."""
+    try:
+        import pefile
+        pe = pefile.PE(path, fast_load=True)
+        pe.parse_data_directories(
+            directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_SECURITY"]])
+        sec = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_SECURITY"]]
+        if not sec.VirtualAddress or not sec.Size:
+            return None
+        der = pe.__data__[sec.VirtualAddress + 8: sec.VirtualAddress + sec.Size]  # skip WIN_CERT hdr
+        from cryptography.hazmat.primitives.serialization import pkcs7
+        certs = pkcs7.load_der_pkcs7_certificates(der)
+        if not certs:
+            return None
+        c0 = certs[0]
+        def _cn(name):
+            from cryptography.x509.oid import NameOID
+            a = name.get_attributes_for_oid(NameOID.COMMON_NAME)
+            return a[0].value if a else ""
+        return (_cn(c0.subject), _cn(c0.issuer), format(c0.serial_number, "X"))
+    except Exception:
+        return None
+
+
+def _cscb_list():
+    """MalwareBazaar Code Signing Certificate Blocklist as {serial_upper: reason}. Cached on
+    disk and refreshed at most once per 24h, so findings writes never hammer the API."""
+    key = _keys().get("abuse_ch")
+    if not key:
+        return None
+    try:
+        if os.path.exists(CSCB_CACHE) and time.time() - os.path.getmtime(CSCB_CACHE) < 86400:
+            return json.load(open(CSCB_CACHE, encoding="utf-8"))
+    except Exception:
+        pass
+    try:
+        d = _mb_post(key, {"query": "get_cscb"}, 60)
+        rows = d.get("data") if isinstance(d, dict) else d
+        serials = {(r.get("serial_number") or "").upper(): (r.get("cscb_reason") or "blocklisted")
+                   for r in (rows or []) if isinstance(r, dict) and r.get("serial_number")}
+        json.dump(serials, open(CSCB_CACHE, "w"))
+        return serials
+    except Exception:
+        return None
+
+
+def _cscb_status(serial_hex):
+    """Is this code-signing serial on the MalwareBazaar blocklist? Uses the cached list."""
+    if not serial_hex:
+        return ""
+    lst = _cscb_list()
+    if not lst:
+        return ""
+    return "LISTED (%s)" % lst[serial_hex.upper()] if serial_hex.upper() in lst else "not listed"
+
+
+_IOC_URL  = re.compile(rb"https?://[A-Za-z0-9.\-_~:/?#\[\]@!$&'()*+,;=%]{4,120}")
+_IOC_IP   = re.compile(rb"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b")
+_IOC_REG  = re.compile(rb"(?:HKLM|HKCU|HKEY_[A-Z_]+|SOFTWARE\\|SYSTEM\\CurrentControlSet)[\\A-Za-z0-9_.\- ]{3,120}")
+_IOC_WPATH= re.compile(rb"[A-Za-z]:\\[\\A-Za-z0-9_.\- ]{3,120}|%[A-Za-z]+%\\[\\A-Za-z0-9_.\- ]{2,120}")
+_IOC_DOM  = re.compile(rb"\b(?:[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?\.)+(?:com|net|org|ru|cn|io|info|biz|top|xyz|online|site|shop|su|cc|me|tk|pw|club|pro|app|dev|gg)\b")
+_IOC_SKIP = re.compile(rb"(?:microsoft|windows|msvcrt|kernel32|schema|w3\.org|example\.|sysinternals|verisign|digicert|sectigo|globalsign|comodo|mozilla|gnu\.org)", re.I)
+
+
+def _extract_iocs(path):
+    """Evidence-first IOCs lifted from the sample's own strings. Returns {category: [values]}."""
+    try:
+        raw = subprocess.run(["strings", "-a", "-n", "6", path], stdin=subprocess.DEVNULL,
+                             capture_output=True, timeout=60).stdout[:4 * 1024 * 1024]
+    except Exception:
+        return {}
+    def grab(rx, n=40):
+        seen, out = set(), []
+        for m in rx.finditer(raw):
+            v = m.group(0)
+            if _IOC_SKIP.search(v):
+                continue
+            s = v.decode("utf-8", "replace")
+            if s not in seen:
+                seen.add(s); out.append(s)
+            if len(out) >= n:
+                break
+        return out
+    def _ok_ip(ip):
+        o = ip.split(".")
+        if ip.startswith(("0.", "127.", "255.", "10.", "192.168.", "169.254.")):
+            return False
+        if o[1] == "0" and o[2] == "0":                  # version-number artifacts e.g. 1.0.0.0
+            return False
+        return True
+    urls = grab(_IOC_URL)
+    ips = [ip for ip in grab(_IOC_IP, 60) if _ok_ip(ip)]
+    return {"urls": urls, "ips": ips, "domains": grab(_IOC_DOM),
+            "registry": grab(_IOC_REG, 25), "paths": grab(_IOC_WPATH, 25)}
+
+
+def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed):
     """Plain-text, category-based record of why this sample is on the dashboard.
-    No prose, no em/en dashes: just the facts and the flags that fired."""
+    No prose, no em/en dashes: just the facts and the flags that fired. `sample` is the
+    on-disk sample path (inside `folder`), used for the static extractions below."""
     rs = reasons if isinstance(reasons, list) else [r for r in (reasons or "").split(";") if r]
     fams = fam if isinstance(fam, list) else []
     cps = caps if isinstance(caps, list) else []
@@ -332,12 +470,44 @@ def write_findings(folder, sha, url, src, size, desc, cat, known, fam, reasons, 
     mb = [r.split(":", 1)[1] for r in rs if r.startswith("mb:")]
     if mb:
         L.append("  malwarebazaar:  %s" % ", ".join(mb))
+    is_pe = cat == "pe" and os.path.exists(sample)
+    if is_pe and _pe_tls(sample):
+        L.append("  tls callback:   present (code runs before main; common anti-debug)")
+    crypto = _crypto_constants(sample) if os.path.exists(sample) else []
+    if crypto:
+        L.append("  crypto constants:")
+        for cc in crypto:
+            L.append("    %s" % cc)
     if cps:
         L.append("  capa behaviors:")
         for cap in cps:
             L.append("    %s" % cap)
-    if not (pe or die or ya or mb or cps or packed):
+    if not (pe or die or ya or mb or cps or packed or crypto):
         L.append("  flagged on: %s" % (", ".join(rs) if rs else "triage heuristics"))
+    if is_pe:
+        cert = _pe_cert(sample)
+        L.append("")
+        L.append("[ CODE SIGNING ]")
+        if cert:
+            L.append("  subject: %s" % (cert[0] or "none"))
+            L.append("  issuer:  %s" % (cert[1] or "none"))
+            L.append("  serial:  %s" % (cert[2] or "none"))
+            cscb = _cscb_status(cert[2])
+            if cscb:
+                L.append("  blocklist (MalwareBazaar CSCB): %s" % cscb)
+        else:
+            L.append("  not signed")
+    iocs = _extract_iocs(sample) if os.path.exists(sample) else {}
+    if any(iocs.values()):
+        L.append("")
+        L.append("[ INDICATORS ]  (strings present in the sample; verify before use)")
+        for label, key in (("urls", "urls"), ("ip addresses", "ips"), ("domains", "domains"),
+                           ("registry", "registry"), ("file paths", "paths")):
+            vals = iocs.get(key) or []
+            if vals:
+                L.append("  %s:" % label)
+                for v in vals:
+                    L.append("    %s" % v)
     L.append("")
     L.append("[ RAW REASONS ]")
     L.append("  %s" % ";".join(rs))
@@ -352,8 +522,9 @@ def _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, cap
     ext = os.path.splitext(path)[1][:5] or ext_for(cat, url)
     folder = os.path.join(QDIR, sha)
     os.makedirs(folder, exist_ok=True)
-    shutil.move(path, os.path.join(folder, sha + ext))  # move (handles cross-filesystem)
-    write_findings(folder, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed)
+    dest = os.path.join(folder, sha + ext)
+    shutil.move(path, dest)                              # move (handles cross-filesystem)
+    write_findings(folder, dest, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed)
     store(c, sha, url, src, size, desc, cat, 1, known, fam, reasons, caps, imp, ent, packed)
     print("KEEP %s known=%s %s" % (sha[:12], known, reasons))
 
@@ -435,7 +606,10 @@ def intake_local(c):
 # --------------------------------------------------------------- known-malware intel (key-gated)
 KEYS_FILE    = os.path.expanduser("~/.cti-keys.json")   # {"abuse_ch":"...","malshare":"..."}
 KNOWN_INTAKE = os.path.expanduser("~/known-intake")
-FEED_PER_RUN = 15            # known samples to pull per run (bounded; 36h retention keeps VM lean)
+CSCB_CACHE   = os.path.expanduser("~/.cti-cscb.json")   # cached code-sign blocklist (refreshed 24h)
+FEED_TS      = os.path.expanduser("~/.cti-feed-ts")     # throttle marker for the known feed
+FEED_PER_RUN = 5             # known samples/run (small, to respect abuse.ch Fair Use rate limits)
+FEED_MIN_INTERVAL = 3 * 3600 # don't pull the known feed more than once per this many seconds
 MB_API       = "https://mb-api.abuse.ch/api/v1/"
 
 
@@ -482,6 +656,12 @@ def feed_known(c):
     keys = _keys()
     if not keys:
         return 0
+    try:                                                 # throttle: respect abuse.ch Fair Use
+        if os.path.exists(FEED_TS) and time.time() - os.path.getmtime(FEED_TS) < FEED_MIN_INTERVAL:
+            return 0
+    except Exception:
+        pass
+    open(FEED_TS, "w").write(str(time.time()))
     os.makedirs(KNOWN_INTAKE, exist_ok=True)
     kept = 0
     mbk = keys.get("abuse_ch")
