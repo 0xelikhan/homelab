@@ -4,6 +4,7 @@
 # ~/quarantine, statically verifies them (file/pefile/DIE/YARA/capa), deletes false
 # positives, and keeps only real malicious executables for the REs. Nothing is executed.
 cd /home/user/Desktop/cti || exit 1
+sh /home/user/Desktop/cti/serve-quarantine.sh 2>/dev/null   # local quarantine file server (127.0.0.1)
 python3 harvest-mirrors.py 2>/dev/null         # refresh live onion leak mirrors
 python3 crawl-sources.py                        # scrape ALL source categories -> candidates
 python3 tg-public.py 2>/dev/null                # account-free sweep of public TG channels -> candidates

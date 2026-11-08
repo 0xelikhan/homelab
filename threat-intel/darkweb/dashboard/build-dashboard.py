@@ -106,12 +106,26 @@ def verified_samples():
         return []
 
 
-def quarantine_path(sha):
-    """Absolute path of the kept sample on disk (named <sha>.<ext>), or '' if pruned."""
+QPORT = 8777                                  # local-only quarantine file server (serve-quarantine.sh)
+QBASE = "http://127.0.0.1:%d" % QPORT         # Tor Browser blocks file://, but reaches localhost
+
+
+def quarantine_entry(sha):
+    """(folder_abspath, sample_filename, findings_text) for a kept sample, or ('','','')
+    if it has been pruned. Each sample lives in ~/quarantine/<sha>/ with its findings.txt."""
     if not sha:
-        return ""
-    hits = glob.glob(os.path.join(QDIR, sha + ".*")) or glob.glob(os.path.join(QDIR, sha))
-    return hits[0] if hits else ""
+        return "", "", ""
+    folder = os.path.join(QDIR, sha)
+    if os.path.isdir(folder):
+        samp = [f for f in os.listdir(folder) if f != "findings.txt" and not f.startswith(".")]
+        find = ""
+        try:
+            find = open(os.path.join(folder, "findings.txt"), encoding="utf-8").read()
+        except Exception:
+            pass
+        return folder, (samp[0] if samp else ""), find
+    hits = glob.glob(os.path.join(QDIR, sha + ".*"))     # legacy flat layout fallback
+    return (hits[0], os.path.basename(hits[0]), "") if hits else ("", "", "")
 
 
 def malware_block():
@@ -132,34 +146,19 @@ def malware_block():
     exrows = []
     for sha, src, ftype, known, fam, reasons, caps, _ts in verified_samples():
         kb = ('<span class="knownb">KNOWN</span> ' if known else '<span class="newb">NEW</span> ')
-        famtxt = ''
-        try:
-            fl = json.loads(fam or "[]")
-            if fl:
-                famtxt = f' <span class="famb">{html.escape(str(fl[0]))}</span>'
-        except Exception:
-            pass
-        # verdict line: why it was kept (reasons) + top capa behaviours (the proof)
-        verdict = html.escape((reasons or "").replace(";", " · ")[:60])
-        capline = ''
-        try:
-            cl = json.loads(caps or "[]")
-            if cl:
-                capline = (' <span class="caps">capa: '
-                           + html.escape(" · ".join(c[:34] for c in cl[:6])) + '</span>')
-        except Exception:
-            pass
-        qp = quarantine_path(sha or "")
-        if qp:
-            folder = (os.path.dirname(qp) or QDIR) + "/"
-            qloc = (f'<a class="qf" href="file://{html.escape(folder, quote=True)}" '
-                    f'title="opens the quarantine folder - then select this file">&#128193; {html.escape(qp)}</a>')
+        folder, samp, findings = quarantine_entry(sha or "")
+        if folder:
+            diskpath = os.path.join(folder, samp) if samp else folder
+            qloc = (f'<a class="qf" href="{QBASE}/{html.escape(sha, quote=True)}/">'
+                    f'&#128193; {html.escape(diskpath)}</a>')
         else:
             qloc = '<span class="x">(pruned from quarantine)</span>'
-        exrows.append(f'<li>{kb}<span class="mono">{html.escape((sha or "")[:20])}</span>{famtxt} '
-                      f'<span class="x">({html.escape((ftype or "")[:34])} · {html.escape((src or "?")[:24])})</span>'
-                      f' <span class="vd">{verdict}</span>{capline}'
-                      f'<br>{qloc}</li>')
+        why = ''
+        if findings:
+            why = (f'<details class="why"><summary>why flagged</summary>'
+                   f'<pre>{html.escape(findings)}</pre></details>')
+        exrows.append(f'<li>{kb}<span class="mono">{html.escape(sha or "")}</span>'
+                      f'<br>{qloc}{why}</li>')
     exblock = (f'<details open><summary>Executables</summary>'
                f'<ul class="dir exe">{"".join(exrows)}</ul></details>' if exrows else '')
 
@@ -347,7 +346,9 @@ details.dead{{background:transparent;border:0;margin:4px 0}} details.dead summar
 ul.dir{{list-style:none;margin:4px 0 8px;padding:0;columns:2;column-gap:28px}} ul.dir li{{break-inside:avoid;padding:1px 0;font-size:13px}}
 ul.exe{{columns:1}} ul.exe li{{padding:4px 0}}
 a.qf{{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#3fb950;word-break:break-all}}
-.vd{{color:#d29922;font-size:11px}} .caps{{color:#8b949e;font-size:10px;font-style:italic}}
+details.why{{background:#0d1117;border:1px solid #21262d;margin:4px 0 2px;padding:0 8px}}
+details.why summary{{color:#d29922;font-size:11px;font-weight:600;padding:4px 0}}
+details.why pre{{white-space:pre-wrap;word-break:break-word;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;color:#adbac7;margin:2px 0 8px}}
 ul.tg{{margin:4px 0 8px;padding-left:18px;font-size:12px;color:#adbac7}} ul.tg li{{padding:2px 0}}
 .b{{font-size:10px;font-weight:700}} .c{{color:#6e7681;font-weight:400;font-size:12px}} .x{{color:#6e7681;font-size:11px}}
 .err{{color:#d29922;font-size:12px}} .foot{{color:#6e7681;font-size:11px;margin-top:30px;border-top:1px solid #21262d;padding-top:10px}}

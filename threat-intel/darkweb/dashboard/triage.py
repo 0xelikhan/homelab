@@ -97,9 +97,10 @@ def init_db(c):
 
 def quarantine_mb():
     t = 0
-    for f in os.listdir(QDIR):
-        try: t += os.path.getsize(os.path.join(QDIR, f))
-        except OSError: pass
+    for dp, _, fs in os.walk(QDIR):
+        for f in fs:
+            try: t += os.path.getsize(os.path.join(dp, f))
+            except OSError: pass
     return t / (1024 * 1024)
 
 
@@ -235,22 +236,37 @@ def decide(path, cat):
     return keep, known, family, reasons, caps, imp, ent, packed
 
 
+def _rm(p):
+    if os.path.isdir(p):
+        shutil.rmtree(p, ignore_errors=True)
+    else:
+        try: os.remove(p)
+        except OSError: pass
+
+
 def prune(c):
     now = time.time()
-    files = []
-    for f in os.listdir(QDIR):
-        p = os.path.join(QDIR, f)
-        try: files.append((os.path.getmtime(p), os.path.getsize(p), p))
-        except OSError: pass
-    for mt, _s, p in files:
-        if mt < now - RETENTION_HOURS * 3600:
-            try: os.remove(p)
-            except OSError: pass
-    files = sorted((x for x in files if os.path.exists(x[2])), key=lambda x: x[0])
-    used = sum(x[1] for x in files); i = 0
-    while used > BUDGET_MB * 1024 * 1024 and i < len(files):
-        try: os.remove(files[i][2]); used -= files[i][1]
-        except OSError: pass
+    items = []                                           # each sample lives in its own folder now
+    for name in os.listdir(QDIR):
+        if name.startswith("."):
+            continue
+        p = os.path.join(QDIR, name)
+        try:
+            if os.path.isdir(p):
+                sz = sum(os.path.getsize(os.path.join(dp, f))
+                         for dp, _, fs in os.walk(p) for f in fs)
+            else:
+                sz = os.path.getsize(p)
+            items.append((os.path.getmtime(p), sz, p))
+        except OSError:
+            pass
+    for mt, _s, p in items:
+        if mt < now - RETENTION_HOURS * 3600:            # 36h retention
+            _rm(p)
+    items = sorted((x for x in items if os.path.exists(x[2])), key=lambda x: x[0])
+    used = sum(x[1] for x in items); i = 0
+    while used > BUDGET_MB * 1024 * 1024 and i < len(items):
+        _rm(items[i][2]); used -= items[i][1]; i += 1
         i += 1
 
 
@@ -280,11 +296,64 @@ def store(c, sha, url, src, size, desc, cat, keep, known, fam, reasons, caps, im
                json.dumps(caps), imp, ent, int(packed), time.time()))
 
 
+def write_findings(folder, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed):
+    """Plain-text, category-based record of why this sample is on the dashboard.
+    No prose, no em/en dashes: just the facts and the flags that fired."""
+    rs = reasons if isinstance(reasons, list) else [r for r in (reasons or "").split(";") if r]
+    fams = fam if isinstance(fam, list) else []
+    cps = caps if isinstance(caps, list) else []
+    L = []
+    L.append("SAMPLE %s" % sha)
+    L.append("")
+    L.append("[ FILE ]")
+    L.append("  type:   %s" % (desc or "unknown"))
+    L.append("  size:   %.2f MB (%d bytes)" % (size / 1048576.0, size))
+    L.append("  source: %s" % (src or "unknown"))
+    L.append("  origin: %s" % (url or "unknown"))
+    L.append("  triaged: %s" % time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()))
+    L.append("")
+    L.append("[ ATTRIBUTION ]")
+    L.append("  status:  %s" % ("KNOWN" if known else "NEW (no known signature match)"))
+    L.append("  family:  %s" % (", ".join(fams) if fams else "none"))
+    L.append("  imphash: %s" % (imp or "none"))
+    L.append("")
+    L.append("[ WHY IT WAS FLAGGED ]")
+    if packed or (ent and ent >= ENTROPY_PACKED):
+        L.append("  packing:        high section entropy %.2f (packed or compressed)" % (ent or 0.0))
+    pe = [r for r in rs if r.startswith("pe:")]
+    if pe:
+        L.append("  pe anomaly:     %s" % ", ".join(pe))
+    die = [r.split(":", 1)[1] for r in rs if r.startswith("die:")]
+    if die:
+        L.append("  packer:         %s" % ", ".join(die))
+    ya = [r.split(":", 1)[1] for r in rs if r.startswith("yara:")]
+    if ya:
+        L.append("  yara signature: %s" % ", ".join(ya))
+    mb = [r.split(":", 1)[1] for r in rs if r.startswith("mb:")]
+    if mb:
+        L.append("  malwarebazaar:  %s" % ", ".join(mb))
+    if cps:
+        L.append("  capa behaviors:")
+        for cap in cps:
+            L.append("    %s" % cap)
+    if not (pe or die or ya or mb or cps or packed):
+        L.append("  flagged on: %s" % (", ".join(rs) if rs else "triage heuristics"))
+    L.append("")
+    L.append("[ RAW REASONS ]")
+    L.append("  %s" % ";".join(rs))
+    txt = "\n".join(L).replace("—", "-").replace("–", "-")
+    with open(os.path.join(folder, "findings.txt"), "w", encoding="utf-8") as fh:
+        fh.write(txt + "\n")
+
+
 def _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed):
-    """Move a verified sample into quarantine and record it."""
+    """Park a verified sample in its own quarantine folder next to a findings.txt that
+    explains, by category, why it is on the dashboard."""
     ext = os.path.splitext(path)[1][:5] or ext_for(cat, url)
-    dest = os.path.join(QDIR, sha + ext)
-    shutil.move(path, dest)                             # move (handles cross-filesystem)
+    folder = os.path.join(QDIR, sha)
+    os.makedirs(folder, exist_ok=True)
+    shutil.move(path, os.path.join(folder, sha + ext))  # move (handles cross-filesystem)
+    write_findings(folder, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed)
     store(c, sha, url, src, size, desc, cat, 1, known, fam, reasons, caps, imp, ent, packed)
     print("KEEP %s known=%s %s" % (sha[:12], known, reasons))
 
