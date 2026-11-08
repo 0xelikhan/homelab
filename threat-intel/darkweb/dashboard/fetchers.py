@@ -137,28 +137,45 @@ def _gofile(url):
     if not m:
         return []
     cid = m.group(1)
-    try:
-        tok = json.loads(_get_text("https://api.gofile.io/accounts", limit=20000))["data"]["token"]
+    try:                                                 # guest account: POST (not GET)
+        req = _req("https://api.gofile.io/accounts", data=b"", method="POST")
+        tok = json.loads(urllib.request.urlopen(req, timeout=FETCH_TIMEOUT).read())["data"]["token"]
     except Exception:
         return None
-    wt = ""
+    wt = ""                                              # rotating website token (gofile moves it)
+    for src in ("https://gofile.io/dist/js/global.js", "https://gofile.io/dist/js/alljs.js",
+                "https://gofile.io"):
+        try:
+            js = _get_text(src, limit=500000)
+            wm = re.search(r'(?:appdata\.)?wt\s*[:=]\s*"([0-9A-Za-z]{6,})"', js)
+            if wm:
+                wt = wm.group(1); break
+        except Exception:
+            continue
+    auth = {"Cookie": "accountToken=" + tok, "Authorization": "Bearer " + tok}
+
+    def contents(content_id):
+        api = "https://api.gofile.io/contents/%s?wt=%s" % (content_id, wt)
+        return json.loads(_get_text(api, headers=auth, limit=400000)).get("data", {})
+
+    jobs = []
     try:
-        js = _get_text("https://gofile.io/dist/js/global.js", limit=200000)
-        wm = re.search(r'wt\s*[:=]\s*"([^"]+)"', js)
-        wt = wm.group(1) if wm else ""
-    except Exception:
-        pass
-    try:
-        api = "https://api.gofile.io/contents/%s?wt=%s" % (cid, wt)
-        d = json.loads(_get_text(api, headers={"Authorization": "Bearer " + tok}, limit=200000))
+        root = contents(cid)
     except Exception:
         return None
-    jobs, children = [], (d.get("data", {}).get("children") or {})
-    cookie = {"Cookie": "accountToken=" + tok, "Authorization": "Bearer " + tok}
-    for ch in children.values():
-        link = ch.get("link")
-        if link:
-            jobs.append({"url": link, "headers": cookie, "transform": None})
+    queue = [root]
+    while queue and len(jobs) < MAX_FOLDER_FILES:
+        node = queue.pop(0)
+        for ch in (node.get("children") or {}).values():
+            if len(jobs) >= MAX_FOLDER_FILES:
+                break
+            if ch.get("type") == "folder":               # recurse one directory deep
+                try:
+                    queue.append(contents(ch.get("id")))
+                except Exception:
+                    pass
+            elif ch.get("link"):
+                jobs.append({"url": ch["link"], "headers": auth, "transform": None})
     return jobs
 
 
@@ -167,32 +184,91 @@ def _b64url(s):
     return base64.b64decode(s.replace("-", "+").replace("_", "/"))
 
 
-def _mega(url):
-    m = re.search(r"mega(?:\.nz|\.co\.nz)/file/([A-Za-z0-9_-]+)#([A-Za-z0-9_-]+)", url)
-    if not m:                                            # folder links need extra crypto -> skip
-        return []
-    fid, key_b64 = m.group(1), m.group(2)
+MAX_FOLDER_FILES = 25           # cap files pulled from one folder link (mega folder / gofile)
+
+
+def _mega_api(folder, body):
+    q = "?id=0" + ("&n=" + folder if folder else "")
+    req = _req("https://g.api.mega.co.nz/cs" + q, data=json.dumps(body).encode(),
+               headers={"Content-Type": "application/json"}, method="POST")
+    return json.loads(urllib.request.urlopen(req, timeout=FETCH_TIMEOUT).read())
+
+
+def _mega_filekey(raw):
+    """8-uint32 file key -> (aes_key, ctr_iv)."""
+    a = struct.unpack(">8I", raw[:32])
+    aes = struct.pack(">4I", a[0] ^ a[4], a[1] ^ a[5], a[2] ^ a[6], a[3] ^ a[7])
+    iv = struct.pack(">2I", a[4], a[5]) + b"\x00" * 8    # CTR nonce + 64-bit counter
+    return aes, iv
+
+
+def _ctr(aes, iv):
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    return Cipher(algorithms.AES(aes), modes.CTR(iv)).decryptor()
+
+
+def _mega_file(fid, key_b64):
     try:
-        a = struct.unpack(">8I", _b64url(key_b64)[:32])
+        aes, iv = _mega_filekey(_b64url(key_b64))
     except Exception:
         return []
-    aes_key = struct.pack(">4I", a[0] ^ a[4], a[1] ^ a[5], a[2] ^ a[6], a[3] ^ a[7])
-    iv = struct.pack(">2I", a[4], a[5]) + b"\x00" * 8    # AES-CTR nonce + 64-bit counter
     try:
-        body = json.dumps([{"a": "g", "g": 1, "p": fid}]).encode()
-        req = _req("https://g.api.mega.co.nz/cs?id=0", data=body,
-                   headers={"Content-Type": "application/json"}, method="POST")
-        info = json.loads(urllib.request.urlopen(req, timeout=FETCH_TIMEOUT).read())[0]
+        info = _mega_api("", [{"a": "g", "g": 1, "p": fid}])[0]
     except Exception:
         return None
     if not isinstance(info, dict) or "g" not in info:
         return []
     try:
-        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-        dec = Cipher(algorithms.AES(aes_key), modes.CTR(iv)).decryptor()
+        return [{"url": info["g"], "headers": None, "transform": _ctr(aes, iv).update}]
     except Exception:
         return []
-    return [{"url": info["g"], "headers": None, "transform": dec.update}]
+
+
+def _mega_folder(folder, key_b64):
+    """Decrypt a shared folder's node list and resolve each file to a download job."""
+    try:
+        from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+        mk = _b64url(key_b64)[:16]                       # 16-byte folder master key
+    except Exception:
+        return []
+    try:
+        res = _mega_api(folder, [{"a": "f", "c": 1, "r": 1, "ca": 1}])
+    except Exception:
+        return None
+    if not isinstance(res, list) or not res or not isinstance(res[0], dict):
+        return []
+    jobs = []
+    for node in (res[0].get("f") or []):
+        if node.get("t") != 0 or len(jobs) >= MAX_FOLDER_FILES:   # files only
+            continue
+        enc = next((p.split(":", 1)[1] for p in (node.get("k") or "").split("/") if ":" in p), "")
+        if not enc:
+            continue
+        try:
+            dec = Cipher(algorithms.AES(mk), modes.ECB()).decryptor()
+            raw = dec.update(_b64url(enc)) + dec.finalize()
+            if len(raw) < 32:
+                continue
+            aes, iv = _mega_filekey(raw)
+            info = _mega_api(folder, [{"a": "g", "g": 1, "n": node.get("h")}])[0]
+        except Exception:
+            continue
+        if isinstance(info, dict) and "g" in info:
+            try:
+                jobs.append({"url": info["g"], "headers": None, "transform": _ctr(aes, iv).update})
+            except Exception:
+                pass
+    return jobs
+
+
+def _mega(url):
+    mf = re.search(r"mega(?:\.nz|\.co\.nz)/folder/([A-Za-z0-9_-]+)#([A-Za-z0-9_-]+)", url)
+    if mf:
+        return _mega_folder(mf.group(1), mf.group(2))
+    m = re.search(r"mega(?:\.nz|\.co\.nz)/file/([A-Za-z0-9_-]+)#([A-Za-z0-9_-]+)", url)
+    if m:
+        return _mega_file(m.group(1), m.group(2))
+    return []
 
 
 def _resolve_jobs(url):
@@ -215,27 +291,30 @@ def _resolve_jobs(url):
     return "UNKNOWN"                                      # host we don't handle
 
 
-def download(url, dest, passwords=None):
-    """Resolve a posted link and fetch the real file into dest (size-capped, decrypted
-    if needed). Returns (ok, size, err):
-      'unresolved'    -> host we don't handle (give up)
-      'no-link'       -> known host, dead/empty link (give up)
-      'resolve-failed'-> known host, resolution failed transiently (retry)"""
+def download_samples(url, workdir, passwords=None):
+    """Resolve a posted link and fetch EVERY file it points at (a folder link yields many)
+    into workdir, decrypting as needed. Returns (paths, err):
+      paths            -> local temp files downloaded (empty on failure)
+      'unresolved'     -> host we don't handle (give up)
+      'no-link'        -> known host, dead/empty link (give up)
+      'resolve-failed' -> known host, resolution failed transiently (retry)"""
     jobs = _resolve_jobs(url)
     if jobs == "UNKNOWN":
-        return False, 0, "unresolved"
+        return [], "unresolved"
     if jobs is None:
-        return False, 0, "resolve-failed"                # known host, transient -> caller retries
+        return [], "resolve-failed"
     if jobs == []:
-        return False, 0, "no-link"                       # recognised host, dead/empty link
-    last = "no-jobs"
-    for job in jobs:
+        return [], "no-link"
+    paths, last = [], None
+    for i, job in enumerate(jobs):
+        dest = os.path.join(workdir, ".incoming_%d" % i)
         ok, size, err = _capped_get(job["url"], dest, headers=job.get("headers"),
                                     transform=job.get("transform"))
         if ok:
-            return True, size, None
-        last = err
-    return False, 0, last
+            paths.append(dest)
+        else:
+            last = err
+    return (paths, None) if paths else ([], last or "no-jobs")
 
 
 # backward-compatible shim (some probes import resolve()); returns direct URLs only

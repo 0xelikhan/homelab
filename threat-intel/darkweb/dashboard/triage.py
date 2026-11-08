@@ -859,11 +859,15 @@ def main():
     for url, src, pw in candidates(c):
         if pulled >= MAX_PULL_PER_RUN or quarantine_mb() >= BUDGET_MB:
             break
-        tmp = os.path.join(QDIR, ".incoming")
-        ok, size, err = fetchers.download(url, tmp, pw)  # resolve + fetch + decrypt, all hosts
-        if ok:
-            pulled += 1
-            kept += triage_one(c, tmp, url, src, pw)
+        paths, err = fetchers.download_samples(url, QDIR, pw)  # all files (a folder yields many)
+        if paths:
+            for p in paths:
+                if pulled >= MAX_PULL_PER_RUN:
+                    try: os.remove(p)                    # over budget this run -> drop leftovers
+                    except OSError: pass
+                    continue
+                pulled += 1
+                kept += triage_one(c, p, url, src, pw)
             _seen(c, url); c.commit(); continue
         print("skip %s (%s)" % (url[:50], err))
         if err == "unresolved" or err == "no-link" or _definitive(err):
