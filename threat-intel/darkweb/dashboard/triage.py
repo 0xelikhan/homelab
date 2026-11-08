@@ -25,6 +25,10 @@ import fetchers                       # resolve() + unpack() live next to this f
 TG_INTAKE = os.path.expanduser("~/tg-intake")   # files the Telegram collector drops here
 ARCHIVE_DESC = re.compile(r"7-zip|rar archive|zip archive|gzip|tar archive|cabinet|"
                           r"ace archive|arj|xz compressed|bzip2", re.I)
+# PE self-extractors / installers: 7z can crack most open, exposing the real payload
+INSTALLER_DESC = re.compile(r"nullsoft|self-extract|inno setup|installshield|wise install|"
+                            r"setup factory|advanced installer|7-?zip sfx|rar sfx|sfx:|\bsfx\b", re.I)
+YARA_MAX_BYTES = 25 * 1024 * 1024   # YARA-scan dropped non-exe up to this (skip giant combolists)
 DB     = os.path.join(HERE, "malware-findings.db")
 QDIR   = os.path.expanduser("~/quarantine")
 UA     = "cti-dashboard"
@@ -221,10 +225,12 @@ def decide(path, cat):
     if pk:  reasons.append("die:packed")
     if exo: reasons.append("die:exotic")
     keep = bool(known or anom or pk or exo)
-    if cat == "pe" and not keep:                      # LAZY capa: only the ambiguous middle
-        mal, caps = capa_malicious(path)
+    if cat in ("pe", "elf"):                           # capa on EVERY analyzable binary (not lazy)
+        mal, caps = capa_malicious(path)               # -> caps always recorded, for real fidelity
         if mal:
-            keep = True; reasons.append("capa:malicious")
+            keep = True
+            if "capa:malicious" not in reasons:
+                reasons.append("capa:malicious")
     return keep, known, family, reasons, caps, imp, ent, packed
 
 
@@ -273,41 +279,61 @@ def store(c, sha, url, src, size, desc, cat, keep, known, fam, reasons, caps, im
                json.dumps(caps), imp, ent, int(packed), time.time()))
 
 
-def triage_one(c, path, url, src, passwords, depth=0):
-    """Dedup -> file-type -> archive(unpack+recurse) | executable(decide). Returns kept count."""
-    sha = hashlib.sha256(open(path, "rb").read()).hexdigest()
-    if c.execute("SELECT 1 FROM triage WHERE sha256=?", (sha,)).fetchone():
-        os.remove(path); return 0                       # dedup
-    size = os.path.getsize(path)
-    desc = file_type(path)
-    if depth < 2 and ARCHIVE_DESC.search(desc):         # archive -> unpack, triage contents
-        exdir = path + ".x"
-        inner = fetchers.unpack(path, exdir, passwords)
-        try: os.remove(path)
-        except OSError: pass
-        nfiles = sum(1 for f in inner if os.path.isfile(f))
-        kept = sum(triage_one(c, f, url, src, passwords, depth + 1)
-                   for f in inner if os.path.isfile(f))
-        shutil.rmtree(exdir, ignore_errors=True)        # drop leftover extracted junk
-        if kept == 0:                                   # auditable drop + content-dedup for next time
-            reason = "archive:%d-inner/0-exe" % nfiles if nfiles else "archive:unextractable"
-            store(c, sha, url, src, size, desc, "archive", 0, 0, [], reason, [], "", 0.0, 0)
-        return kept
-    cat = categorize(desc)
-    if cat not in KEEP_EXE:                              # not an executable -> delete now
-        os.remove(path); store(c, sha, url, src, size, desc, cat, 0, 0, [], "not-exe", [], "", 0.0, 0)
-        return 0
-    keep, known, fam, reasons, caps, imp, ent, packed = decide(path, cat)
-    if not keep:
-        os.remove(path)                                 # false positive -> delete
-        store(c, sha, url, src, size, desc, cat, 0, 0, [], "benign", caps, imp, ent, packed)
-        return 0
+def _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed):
+    """Move a verified sample into quarantine and record it."""
     ext = os.path.splitext(path)[1][:5] or ext_for(cat, url)
     dest = os.path.join(QDIR, sha + ext)
     os.replace(path, dest)
     store(c, sha, url, src, size, desc, cat, 1, known, fam, reasons, caps, imp, ent, packed)
     print("KEEP %s known=%s %s" % (sha[:12], known, reasons))
-    return 1
+
+
+def triage_one(c, path, url, src, passwords, depth=0):
+    """Dedup -> file-type -> (archive/installer: unpack+recurse) + (binary: decide) +
+    (non-exe: YARA for known-bad maldoc/webshell/skimmer). Returns kept count."""
+    sha = hashlib.sha256(open(path, "rb").read()).hexdigest()
+    if c.execute("SELECT 1 FROM triage WHERE sha256=?", (sha,)).fetchone():
+        os.remove(path); return 0                       # dedup
+    size = os.path.getsize(path)
+    desc = file_type(path)
+    cat = categorize(desc)
+
+    # Archives AND PE self-extractors/installers: crack open with 7z, triage the real payload.
+    inner_kept = 0
+    is_installer = INSTALLER_DESC.search(desc) and cat == "pe"
+    if depth < 2 and (ARCHIVE_DESC.search(desc) or is_installer):
+        exdir = path + ".x"
+        inner = fetchers.unpack(path, exdir, passwords)
+        nfiles = sum(1 for f in inner if os.path.isfile(f))
+        inner_kept = sum(triage_one(c, f, url, src, passwords, depth + 1)
+                         for f in inner if os.path.isfile(f))
+        shutil.rmtree(exdir, ignore_errors=True)        # drop leftover extracted junk
+        if cat not in KEEP_EXE:                          # pure archive: no stub binary to analyse
+            try: os.remove(path)
+            except OSError: pass
+            if inner_kept == 0:                          # auditable drop + content-dedup
+                reason = "archive:%d-inner/0-exe" % nfiles if nfiles else "archive:unextractable"
+                store(c, sha, url, src, size, desc, "archive", 0, 0, [], reason, [], "", 0.0, 0)
+            return inner_kept
+        # installer IS a PE stub -> fall through and analyse the stub too (payload already done)
+
+    # Non-executable: still worth a YARA pass for known-bad maldocs / webshells / skimmers.
+    if cat not in KEEP_EXE:
+        fam = yara_families(path) if size <= YARA_MAX_BYTES else []
+        if fam:                                          # known-malicious document / script / data
+            _keep_file(c, path, sha, url, src, size, desc, cat, 1, fam, ["yara:" + fam[0]], [], "", 0.0, 0)
+            return 1 + inner_kept
+        os.remove(path); store(c, sha, url, src, size, desc, cat, 0, 0, [], "not-exe", [], "", 0.0, 0)
+        return inner_kept
+
+    # Executable: full verdict (YARA attribution + PE anomaly + DIE packer + capa behaviour).
+    keep, known, fam, reasons, caps, imp, ent, packed = decide(path, cat)
+    if not keep:
+        os.remove(path)                                 # false positive -> delete
+        store(c, sha, url, src, size, desc, cat, 0, known, fam, reasons or ["benign"], caps, imp, ent, packed)
+        return inner_kept
+    _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed)
+    return 1 + inner_kept
 
 
 def intake_local(c):
