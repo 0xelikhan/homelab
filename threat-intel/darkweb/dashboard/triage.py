@@ -85,6 +85,7 @@ def init_db(c):
         filetype TEXT, category TEXT, kept INTEGER, known INTEGER, family TEXT,
         reasons TEXT, caps TEXT, imphash TEXT, max_entropy REAL, packed INTEGER, ts REAL);
     CREATE TABLE IF NOT EXISTS triage_seen(url TEXT PRIMARY KEY, ts REAL);
+    CREATE TABLE IF NOT EXISTS triage_try(url TEXT PRIMARY KEY, n INTEGER, ts REAL);
     """)
     c.commit()
 
@@ -322,6 +323,19 @@ def intake_local(c):
     return kept
 
 
+MAX_TRIES = 4        # transient fetch failures to tolerate before giving up on a candidate
+
+def _seen(c, url):
+    c.execute("INSERT OR REPLACE INTO triage_seen VALUES(?,?)", (url, time.time()))
+
+def _definitive(err):
+    """A fetch outcome that will not change on retry -> stop trying this URL."""
+    if err in ("too-big", "exceeded-cap"):
+        return True
+    e = (err or "").lower()
+    return any(k in e for k in ("not found", "forbidden", "gone", "bad request",
+                                "unauthorized", "404", "403", "410", "400", "401"))
+
 def main():
     os.makedirs(QDIR, exist_ok=True)
     c = sqlite3.connect(DB); init_db(c); prune(c)
@@ -330,20 +344,31 @@ def main():
     for url, src, pw in candidates(c):
         if pulled >= MAX_PULL_PER_RUN or quarantine_mb() >= BUDGET_MB:
             break
-        c.execute("INSERT OR REPLACE INTO triage_seen VALUES(?,?)", (url, time.time()))
         durls = fetchers.resolve(url)
         if not durls:
-            c.commit(); continue                        # unresolvable host -> skip quietly
+            _seen(c, url); c.commit(); continue         # host we can't resolve (yet) -> skip
+        outcome = None                                  # 'ok' | 'definitive' | 'transient'
         for durl in durls:
             if pulled >= MAX_PULL_PER_RUN:
                 break
             tmp = os.path.join(QDIR, ".incoming")
             ok, size, err = fetch_capped(durl, tmp)
-            if not ok:
-                print("skip %s (%s)" % (durl[:50], err)); continue
-            pulled += 1
-            kept += triage_one(c, tmp, url, src, pw)
-            c.commit()
+            if ok:
+                pulled += 1
+                kept += triage_one(c, tmp, url, src, pw)
+                outcome = "ok"; c.commit(); continue
+            print("skip %s (%s)" % (durl[:50], err))
+            if outcome != "ok":
+                outcome = "definitive" if _definitive(err) else "transient"
+        # Only burn the candidate on a settled outcome; retry transient (flaky-Tor) failures.
+        if outcome in ("ok", "definitive"):
+            _seen(c, url)
+        elif outcome == "transient":
+            n = (c.execute("SELECT n FROM triage_try WHERE url=?", (url,)).fetchone() or [0])[0] + 1
+            c.execute("INSERT OR REPLACE INTO triage_try VALUES(?,?,?)", (url, n, time.time()))
+            if n >= MAX_TRIES:
+                _seen(c, url)                           # give up after repeated transient failures
+        c.commit()
     prune(c); c.commit()
     print("triage: pulled=%d kept=%d quarantine=%.0fMB" % (pulled, kept, quarantine_mb()))
 
