@@ -22,6 +22,7 @@ import os, re, json, time, sqlite3, hashlib, subprocess, shutil, sys, urllib.req
 HERE   = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import fetchers                       # resolve() + unpack() live next to this file
+TG_INTAKE = os.path.expanduser("~/tg-intake")   # files the Telegram collector drops here
 ARCHIVE_DESC = re.compile(r"7-zip|rar archive|zip archive|gzip|tar archive|cabinet|"
                           r"ace archive|arj|xz compressed|bzip2", re.I)
 DB     = os.path.join(HERE, "malware-findings.db")
@@ -304,10 +305,28 @@ def triage_one(c, path, url, src, passwords, depth=0):
     return 1
 
 
+def intake_local(c):
+    """Triage files dropped into ~/tg-intake by the Telegram collector (already fetched,
+    so no resolve/fetch - just the same dedup -> file-type -> unpack -> decide path)."""
+    if not os.path.isdir(TG_INTAKE):
+        return 0
+    kept = 0
+    for f in sorted(os.listdir(TG_INTAKE)):
+        p = os.path.join(TG_INTAKE, f)
+        if f.startswith(".") or not os.path.isfile(p):
+            continue
+        if quarantine_mb() >= BUDGET_MB:
+            break
+        kept += triage_one(c, p, "telegram://" + f, "telegram", [])
+        c.commit()
+    return kept
+
+
 def main():
     os.makedirs(QDIR, exist_ok=True)
     c = sqlite3.connect(DB); init_db(c); prune(c)
     pulled = kept = 0
+    kept += intake_local(c)             # Telegram-collected samples first (already downloaded)
     for url, src, pw in candidates(c):
         if pulled >= MAX_PULL_PER_RUN or quarantine_mb() >= BUDGET_MB:
             break

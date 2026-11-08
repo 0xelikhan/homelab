@@ -6,5 +6,6 @@
 cd /home/user/Desktop/cti || exit 1
 python3 harvest-mirrors.py 2>/dev/null
 python3 crawl-sources.py
+sh /home/user/Desktop/cti/tg-collect.sh 2>/dev/null   # Telegram sample pull (no-op until account set up)
 python3 triage.py 2>/dev/null
 python3 build-dashboard.py
