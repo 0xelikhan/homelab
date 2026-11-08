@@ -91,7 +91,7 @@ def rl_group_map():
     return m
 
 
-# ---------- dark-web malware early-warning (hashes + executables) ----------
+# ---------- dark-web malware early-warning (verified executables) ----------
 def verified_samples():
     """Executables that triage.py pulled, statically verified as malicious, and parked in
     ~/quarantine for the REs. Reads the triage table directly (triage runs before this)."""
@@ -106,7 +106,7 @@ def verified_samples():
 
 
 def malware_block():
-    """Primary panel: hashes + executables mined by the read-only crawler from all dark-web sources."""
+    """Primary panel: verified malicious executables pulled + statically triaged for the REs."""
     path = os.path.join(HERE, "malware-findings.json")
     try:
         d = json.load(open(path, encoding="utf-8"))
@@ -119,24 +119,6 @@ def malware_block():
             lbl = names[i] if (i < len(names) and names[i]) else (u[:22] + "…")
             out.append(f'<a href="{html.escape(u)}">{html.escape(lbl)}</a>')
         return " ".join(out) or '<span class="x">?</span>'
-
-    def badges(f):
-        b = '<span class="newb">NEW</span> ' if f.get("new") else ''
-        tier = f.get("tier")
-        if tier == "high":
-            b += '<span class="tierh">high</span> '
-        elif tier == "med":
-            b += '<span class="tierm">med</span> '
-        if f.get("family"):
-            b += f'<span class="famb">{html.escape(f["family"])}</span>'
-        return b.strip()
-
-    rows = []
-    for f in d.get("hashes", [])[:120]:
-        rows.append(f'<tr><td class="mono">{html.escape(f["hash"])}</td><td>{f["type"]}</td>'
-                    f'<td>{badges(f)}</td><td class="d">{html.escape(f.get("last",""))}</td>'
-                    f'<td class="src">{srclinks(f.get("source_links",[]), f.get("sources",[]))}</td></tr>')
-    htable = "".join(rows) or '<tr><td colspan="5" class="x">No hashes yet.</td></tr>'
 
     exrows = []
     for sha, src, ftype, known, fam, _ts in verified_samples():
@@ -175,9 +157,8 @@ def malware_block():
                       f'{srclinks(t.get("links",[]), t.get("sources",[]))}</li>')
     tkblock = (f'<details open><summary>Telegram bot C2 tokens</summary>'
                f'<ul class="dir">{"".join(tkrows)}</ul></details>' if tkrows else '')
-    return ('<div class="mw">' + famline +
-            '<table><thead><tr><th>Hash</th><th>Type</th><th>Flag</th><th>Last seen</th><th>Found on</th></tr></thead>'
-            f'<tbody>{htable}</tbody></table>{exblock}{tkblock}</div>')
+    exmain = exblock or '<p class="x">No verified executables yet.</p>'
+    return ('<div class="mw">' + famline + exmain + tkblock + '</div>')
 
 
 # ---------- live ransomware feed + new-since-last ----------
