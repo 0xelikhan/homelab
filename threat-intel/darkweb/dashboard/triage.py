@@ -38,7 +38,8 @@ MAX_FILE_MB      = 50
 BUDGET_MB        = 2048
 MAX_PULL_PER_RUN = 12
 RETENTION_HOURS  = 36         # dark-web finds: ~36h so REs have a weekend's worth
-KNOWN_RETENTION_HOURS = 12    # known-feed baseline: shorter, it is reference not the hunt
+KNOWN_RETENTION_HOURS = 8     # known-feed baseline backstop (the count cap below does the work)
+KNOWN_MAX        = 10         # keep at most this many known-feed samples (it is a small reference)
 FETCH_TIMEOUT    = 60
 CAPA_TIMEOUT     = 120
 CAPA_BIN   = os.path.expanduser("~/.local/bin/capa")
@@ -266,15 +267,27 @@ def prune(c):
             items.append((os.path.getmtime(p), sz, p))
         except OSError:
             pass
+    def drop(p):                                          # remove files AND the board (DB) row
+        _rm(p)
+        try:
+            c.execute("DELETE FROM triage WHERE sha256=?", (os.path.basename(p.rstrip("/")),))
+        except Exception:
+            pass
     for mt, _s, p in items:
         hrs = KNOWN_RETENTION_HOURS if os.path.basename(p.rstrip("/")) in known else RETENTION_HOURS
         if mt < now - hrs * 3600:
-            _rm(p)
+            drop(p)
+    # hard count cap on known-feed samples: keep only the most recent KNOWN_MAX
+    kn = sorted((it for it in items if os.path.exists(it[2])
+                 and os.path.basename(it[2].rstrip("/")) in known),
+                key=lambda x: x[0], reverse=True)
+    for _mt, _s, p in kn[KNOWN_MAX:]:
+        drop(p)
     items = sorted((x for x in items if os.path.exists(x[2])), key=lambda x: x[0])
     used = sum(x[1] for x in items); i = 0
     while used > BUDGET_MB * 1024 * 1024 and i < len(items):
-        _rm(items[i][2]); used -= items[i][1]; i += 1
-        i += 1
+        drop(items[i][2]); used -= items[i][1]; i += 1
+    c.commit()
 
 
 def candidates(c):
@@ -675,8 +688,8 @@ KEYS_FILE    = os.path.expanduser("~/.cti-keys.json")   # {"abuse_ch":"...","mal
 KNOWN_INTAKE = os.path.expanduser("~/known-intake")
 CSCB_CACHE   = os.path.expanduser("~/.cti-cscb.json")   # cached code-sign blocklist (refreshed 24h)
 FEED_TS      = os.path.expanduser("~/.cti-feed-ts")     # throttle marker for the known feed
-FEED_PER_RUN = 5             # known samples/run (small, to respect abuse.ch Fair Use rate limits)
-FEED_MIN_INTERVAL = 3 * 3600 # don't pull the known feed more than once per this many seconds
+FEED_PER_RUN = 3             # known samples/run (small; the board only keeps KNOWN_MAX anyway)
+FEED_MIN_INTERVAL = 6 * 3600 # don't pull the known feed more than once per this many seconds
 MB_API       = "https://mb-api.abuse.ch/api/v1/"
 FEED_FAM_OFF = os.path.expanduser("~/.cti-feed-fam-off")   # rotation cursor over the families
 # families the REs care about (stealers / loaders / RATs), rotated one per feed run so the
