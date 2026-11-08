@@ -12,10 +12,11 @@ Sections:
     Tor (no account needed), cached, re-checked every 6h.
   - Deduped directory of ~2500 sources (collapsible).
 """
-import json, os, re, html, datetime, urllib.request, urllib.error
+import json, os, re, html, datetime, glob, urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+QDIR = os.path.expanduser("~/quarantine")   # where triage.py parks verified executables
 SRC = json.load(open(os.path.join(HERE, "sources.json"), encoding="utf-8"))
 ACTIVE = {"ONLINE", "VALID"}
 UA = "cti-dashboard"
@@ -105,6 +106,14 @@ def verified_samples():
         return []
 
 
+def quarantine_path(sha):
+    """Absolute path of the kept sample on disk (named <sha>.<ext>), or '' if pruned."""
+    if not sha:
+        return ""
+    hits = glob.glob(os.path.join(QDIR, sha + ".*")) or glob.glob(os.path.join(QDIR, sha))
+    return hits[0] if hits else ""
+
+
 def malware_block():
     """Primary panel: verified malicious executables pulled + statically triaged for the REs."""
     path = os.path.join(HERE, "malware-findings.json")
@@ -130,10 +139,17 @@ def malware_block():
                 famtxt = f' <span class="famb">{html.escape(str(fl[0]))}</span>'
         except Exception:
             pass
+        qp = quarantine_path(sha or "")
+        if qp:
+            qloc = (f'<a class="qf" href="file://{html.escape(qp, quote=True)}" '
+                    f'title="click to open, or copy this path on the box">&#128193; {html.escape(qp)}</a>')
+        else:
+            qloc = '<span class="x">(pruned from quarantine)</span>'
         exrows.append(f'<li>{kb}<span class="mono">{html.escape((sha or "")[:20])}</span>{famtxt} '
-                      f'<span class="x">({html.escape((ftype or "")[:34])} · {html.escape((src or "?")[:24])})</span></li>')
+                      f'<span class="x">({html.escape((ftype or "")[:34])} · {html.escape((src or "?")[:24])})</span>'
+                      f'<br>{qloc}</li>')
     exblock = (f'<details open><summary>Executables</summary>'
-               f'<ul class="dir">{"".join(exrows)}</ul></details>' if exrows else '')
+               f'<ul class="dir exe">{"".join(exrows)}</ul></details>' if exrows else '')
 
     fams = d.get("sample_families", [])
     famline = ''
@@ -317,6 +333,8 @@ details{{background:#161b22;border:1px solid #21262d;border-radius:6px;margin:6p
 details summary{{cursor:pointer;font-weight:600;padding:6px 0}}
 details.dead{{background:transparent;border:0;margin:4px 0}} details.dead summary{{color:#6e7681;font-weight:400;font-size:12px}}
 ul.dir{{list-style:none;margin:4px 0 8px;padding:0;columns:2;column-gap:28px}} ul.dir li{{break-inside:avoid;padding:1px 0;font-size:13px}}
+ul.exe{{columns:1}} ul.exe li{{padding:4px 0}}
+a.qf{{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#3fb950;word-break:break-all}}
 ul.tg{{margin:4px 0 8px;padding-left:18px;font-size:12px;color:#adbac7}} ul.tg li{{padding:2px 0}}
 .b{{font-size:10px;font-weight:700}} .c{{color:#6e7681;font-weight:400;font-size:12px}} .x{{color:#6e7681;font-size:11px}}
 .err{{color:#d29922;font-size:12px}} .foot{{color:#6e7681;font-size:11px;margin-top:30px;border-top:1px solid #21262d;padding-top:10px}}
