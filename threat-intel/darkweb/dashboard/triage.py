@@ -688,6 +688,7 @@ KEYS_FILE    = os.path.expanduser("~/.cti-keys.json")   # {"abuse_ch":"...","mal
 KNOWN_INTAKE = os.path.expanduser("~/known-intake")
 CSCB_CACHE   = os.path.expanduser("~/.cti-cscb.json")   # cached code-sign blocklist (refreshed 24h)
 FEED_TS      = os.path.expanduser("~/.cti-feed-ts")     # throttle marker for the known feed
+FEED_ENABLED = False         # known-malware feed OFF (set True to resume); oracle + CSCB stay on
 FEED_PER_RUN = 3             # known samples/run (small; the board only keeps KNOWN_MAX anyway)
 FEED_MIN_INTERVAL = 6 * 3600 # don't pull the known feed more than once per this many seconds
 MB_API       = "https://mb-api.abuse.ch/api/v1/"
@@ -772,7 +773,7 @@ def feed_known(c):
     through the normal triage path, so the board carries a current known-malware baseline.
     Key-gated: with no ~/.cti-keys.json it is a clean no-op."""
     keys = _keys()
-    if not keys:
+    if not keys or not FEED_ENABLED:                     # feed paused -> oracle/CSCB still run
         return 0
     try:                                                 # throttle: respect abuse.ch Fair Use
         if os.path.exists(FEED_TS) and time.time() - os.path.getmtime(FEED_TS) < FEED_MIN_INTERVAL:
