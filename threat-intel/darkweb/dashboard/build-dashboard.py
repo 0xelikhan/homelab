@@ -117,7 +117,8 @@ def quarantine_entry(sha):
         return "", "", ""
     folder = os.path.join(QDIR, sha)
     if os.path.isdir(folder):
-        samp = [f for f in os.listdir(folder) if f != "findings.txt" and not f.startswith(".")]
+        samp = [f for f in os.listdir(folder)
+                if f not in ("findings.txt", "rule.yar") and not f.startswith(".")]
         find = ""
         try:
             find = open(os.path.join(folder, "findings.txt"), encoding="utf-8").read()
@@ -143,19 +144,22 @@ def malware_block():
             out.append(f'<a href="{html.escape(u)}">{html.escape(lbl)}</a>')
         return " ".join(out) or '<span class="x">?</span>'
 
-    exrows = []
+    KNOWN_SRCS = ("malwarebazaar", "malshare")
+
+    def _row(sha, known):
+        kb = '<span class="knownb">KNOWN</span> ' if known else '<span class="newb">NEW</span> '
+        folder, _s, _f = quarantine_entry(sha or "")
+        qloc = (f'<span class="qf">&#128193; {html.escape(folder.rstrip("/"))}/</span>'
+                if folder else '<span class="x">(pruned from quarantine)</span>')
+        return (f'<li>{kb}<span class="mono">{html.escape(sha or "")}</span><br>{qloc}</li>')
+
+    dw_rows, kn_rows = [], []
     for sha, src, ftype, known, fam, reasons, caps, _ts in verified_samples():
-        kb = ('<span class="knownb">KNOWN</span> ' if known else '<span class="newb">NEW</span> ')
-        folder, _samp, _find = quarantine_entry(sha or "")
-        if folder:
-            qloc = (f'<span class="qf">&#128193; {html.escape(folder.rstrip("/"))}/</span>'
-                    f'<span class="x"> (sample + findings.txt)</span>')
-        else:
-            qloc = '<span class="x">(pruned from quarantine)</span>'
-        exrows.append(f'<li>{kb}<span class="mono">{html.escape(sha or "")}</span>'
-                      f'<br>{qloc}</li>')
+        (kn_rows if (src or "").lower() in KNOWN_SRCS else dw_rows).append(_row(sha, known))
     exblock = (f'<details open><summary>Executables</summary>'
-               f'<ul class="dir exe">{"".join(exrows)}</ul></details>' if exrows else '')
+               f'<ul class="dir exe">{"".join(dw_rows)}</ul></details>' if dw_rows else '')
+    knblock = (f'<details open><summary>Known</summary>'
+               f'<ul class="dir exe">{"".join(kn_rows)}</ul></details>' if kn_rows else '')
 
     fams = d.get("sample_families", [])
     famline = ''
@@ -180,7 +184,8 @@ def malware_block():
     tkblock = (f'<details open><summary>Telegram bot C2 tokens</summary>'
                f'<ul class="dir">{"".join(tkrows)}</ul></details>' if tkrows else '')
     exmain = exblock or '<p class="x">No verified executables yet.</p>'
-    return ('<div class="mw">' + famline + exmain + tkblock + '</div>')
+    # (dropped the scraped "sample_families" line: names claimed in posts, not tied to samples)
+    return ('<div class="mw">' + exmain + knblock + tkblock + '</div>')
 
 
 # ---------- live ransomware feed + new-since-last ----------

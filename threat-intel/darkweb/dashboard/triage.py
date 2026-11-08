@@ -37,7 +37,8 @@ UA     = "cti-dashboard"
 MAX_FILE_MB      = 50
 BUDGET_MB        = 2048
 MAX_PULL_PER_RUN = 12
-RETENTION_HOURS  = 36         # keep samples ~36h so REs have a weekend's worth, VM stays lean
+RETENTION_HOURS  = 36         # dark-web finds: ~36h so REs have a weekend's worth
+KNOWN_RETENTION_HOURS = 12    # known-feed baseline: shorter, it is reference not the hunt
 FETCH_TIMEOUT    = 60
 CAPA_TIMEOUT     = 120
 CAPA_BIN   = os.path.expanduser("~/.local/bin/capa")
@@ -246,6 +247,11 @@ def _rm(p):
 
 def prune(c):
     now = time.time()
+    try:                                                 # known-feed samples age out faster
+        known = {r[0] for r in c.execute(
+            "SELECT sha256 FROM triage WHERE source_name IN ('MalwareBazaar','MalShare')")}
+    except Exception:
+        known = set()
     items = []                                           # each sample lives in its own folder now
     for name in os.listdir(QDIR):
         if name.startswith("."):
@@ -261,7 +267,8 @@ def prune(c):
         except OSError:
             pass
     for mt, _s, p in items:
-        if mt < now - RETENTION_HOURS * 3600:            # 36h retention
+        hrs = KNOWN_RETENTION_HOURS if os.path.basename(p.rstrip("/")) in known else RETENTION_HOURS
+        if mt < now - hrs * 3600:
             _rm(p)
     items = sorted((x for x in items if os.path.exists(x[2])), key=lambda x: x[0])
     used = sum(x[1] for x in items); i = 0
@@ -433,6 +440,64 @@ def _extract_iocs(path):
             "registry": grab(_IOC_REG, 25), "paths": grab(_IOC_WPATH, 25)}
 
 
+_YARA_NOISE = re.compile(
+    rb"kernel32|user32|ntdll|advapi32|gdi32|ole32|shell32|ws2_32|msvcr|GetProc|LoadLibrary|"
+    rb"VirtualAlloc|microsoft|windows|program files|system32|\.dll|\.exe|mscoree|assembly|"
+    rb"this program|GetModuleHandle|CreateFile|RegOpenKey|http://schemas|w3\.org|xmlns", re.I)
+
+
+def _yara_strings(path, n=8):
+    try:
+        raw = subprocess.run(["strings", "-a", "-n", "8", path], stdin=subprocess.DEVNULL,
+                             capture_output=True, timeout=60).stdout[:2 * 1024 * 1024]
+    except Exception:
+        return []
+    seen, cand = set(), []
+    for line in raw.split(b"\n"):
+        s = line.strip()
+        if not (8 <= len(s) <= 60) or not re.fullmatch(rb"[\x20-\x7e]+", s):
+            continue
+        if _YARA_NOISE.search(s) or s in seen:
+            continue
+        seen.add(s); cand.append(s)
+        if len(cand) >= 60:
+            break
+    cand.sort(key=lambda s: (-len(s), -sum(1 for ch in s if not chr(ch).isalpha())))
+    return cand[:n]
+
+
+def write_yara_rule(folder, sample, sha, src, imp):
+    """Draft a starting YARA rule (imphash + distinctive strings) next to the sample, as a
+    head start for the RE / detection side. Explicitly marked auto-drafted."""
+    strs = _yara_strings(sample)
+    if not strs:
+        return
+    out = ["// Auto-drafted starting signature. Heuristic (strings + imphash). Verify and tighten."]
+    if imp:
+        out.append('import "pe"')
+    out.append("")
+    out.append("rule novel_%s" % sha[:12])
+    out.append("{")
+    out.append("    meta:")
+    out.append('        sha256 = "%s"' % sha)
+    out.append('        source = "%s"' % (src or "unknown"))
+    out.append('        generated = "%s"' % time.strftime("%Y-%m-%d", time.gmtime()))
+    out.append('        note = "auto-drafted; confirm before deploying"')
+    out.append("    strings:")
+    for i, s in enumerate(strs):
+        esc = s.decode("latin-1").replace("\\", "\\\\").replace('"', '\\"')
+        out.append('        $s%d = "%s" ascii' % (i, esc))
+    cond = ["uint16(0) == 0x5A4D"]
+    if imp:
+        cond.append('pe.imphash() == "%s"' % imp)
+    cond.append("%d of ($s*)" % max(3, len(strs) // 2))
+    out.append("    condition:")
+    out.append("        " + " and ".join(cond))
+    out.append("}")
+    with open(os.path.join(folder, "rule.yar"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(out) + "\n")
+
+
 def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed):
     """Plain-text, category-based record of why this sample is on the dashboard.
     No prose, no em/en dashes: just the facts and the flags that fired. `sample` is the
@@ -525,6 +590,8 @@ def _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, cap
     dest = os.path.join(folder, sha + ext)
     shutil.move(path, dest)                              # move (handles cross-filesystem)
     write_findings(folder, dest, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed)
+    if not known and cat == "pe":                        # novel: draft a starting YARA rule
+        write_yara_rule(folder, dest, sha, src, imp)
     store(c, sha, url, src, size, desc, cat, 1, known, fam, reasons, caps, imp, ent, packed)
     print("KEEP %s known=%s %s" % (sha[:12], known, reasons))
 
@@ -611,6 +678,25 @@ FEED_TS      = os.path.expanduser("~/.cti-feed-ts")     # throttle marker for th
 FEED_PER_RUN = 5             # known samples/run (small, to respect abuse.ch Fair Use rate limits)
 FEED_MIN_INTERVAL = 3 * 3600 # don't pull the known feed more than once per this many seconds
 MB_API       = "https://mb-api.abuse.ch/api/v1/"
+FEED_FAM_OFF = os.path.expanduser("~/.cti-feed-fam-off")   # rotation cursor over the families
+# families the REs care about (stealers / loaders / RATs), rotated one per feed run so the
+# baseline is relevant rather than MalwareBazaar's random recent additions
+FEED_FAMILIES = ["RedLineStealer", "LummaStealer", "Vidar", "Stealc", "AsyncRAT", "RemcosRAT",
+                 "SmokeLoader", "Amadey", "AgentTesla", "Formbook", "QuasarRAT", "NjRAT",
+                 "Rhadamanthys", "DCRat", "GuLoader"]
+
+
+def _next_family():
+    try:
+        off = int(open(FEED_FAM_OFF).read().strip())
+    except Exception:
+        off = 0
+    fam = FEED_FAMILIES[off % len(FEED_FAMILIES)]
+    try:
+        open(FEED_FAM_OFF, "w").write(str((off + 1) % len(FEED_FAMILIES)))
+    except Exception:
+        pass
+    return fam
 
 
 def _keys():
@@ -666,12 +752,15 @@ def feed_known(c):
     kept = 0
     mbk = keys.get("abuse_ch")
     if mbk:
+        fam = _next_family()                             # one RE-relevant family per run, rotating
         try:
-            recent = (_mb_post(mbk, {"query": "get_recent", "selector": "100"}, 60).get("data") or [])
+            rows = (_mb_post(mbk, {"query": "get_siginfo", "signature": fam,
+                                   "limit": str(FEED_PER_RUN * 4)}, 60).get("data") or [])
         except Exception:
-            recent = []
-        for row in recent[:FEED_PER_RUN]:
-            if quarantine_mb() >= BUDGET_MB:
+            rows = []
+        pulled = 0
+        for row in rows:
+            if pulled >= FEED_PER_RUN or quarantine_mb() >= BUDGET_MB:
                 break
             sha = row.get("sha256_hash") or ""
             if not sha or c.execute("SELECT 1 FROM triage_seen WHERE url=?", ("mb://" + sha,)).fetchone():
@@ -686,6 +775,7 @@ def feed_known(c):
                 continue
             open(zp, "wb").write(b)
             kept += triage_one(c, zp, "malwarebazaar://" + sha, "MalwareBazaar", ["infected"])
+            pulled += 1
             c.commit()
     msk = keys.get("malshare")
     if msk:
