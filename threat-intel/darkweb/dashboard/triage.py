@@ -283,7 +283,7 @@ def _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, cap
     """Move a verified sample into quarantine and record it."""
     ext = os.path.splitext(path)[1][:5] or ext_for(cat, url)
     dest = os.path.join(QDIR, sha + ext)
-    os.replace(path, dest)
+    shutil.move(path, dest)                             # move (handles cross-filesystem)
     store(c, sha, url, src, size, desc, cat, 1, known, fam, reasons, caps, imp, ent, packed)
     print("KEEP %s known=%s %s" % (sha[:12], known, reasons))
 
