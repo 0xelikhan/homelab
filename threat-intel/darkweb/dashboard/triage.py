@@ -719,12 +719,31 @@ def _keys():
         return {}
 
 
+MB_COOLDOWN = os.path.expanduser("~/.cti-mb-cooldown")   # set on a 403/429, pauses all MB calls
+MB_COOLDOWN_SECS = 6 * 3600
+
+
+def _mb_blocked():
+    try:
+        return os.path.exists(MB_COOLDOWN) and time.time() - os.path.getmtime(MB_COOLDOWN) < MB_COOLDOWN_SECS
+    except Exception:
+        return False
+
+
 def _mb_post(key, fields, timeout=40, raw=False):
+    if _mb_blocked():                                    # backing off after a rate-limit response
+        raise RuntimeError("mb-cooldown")
     data = urllib.parse.urlencode(fields).encode()
     req = urllib.request.Request(MB_API, data=data,
                                  headers={"Auth-Key": key, "User-Agent": "cti-dashboard"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        b = r.read(80 * 1024 * 1024)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            b = r.read(80 * 1024 * 1024)
+    except urllib.error.HTTPError as e:
+        if e.code in (403, 429):                         # Fair Use limit: stop querying for a while
+            try: open(MB_COOLDOWN, "w").write(str(time.time()))
+            except Exception: pass
+        raise
     return b if raw else json.loads(b)
 
 
