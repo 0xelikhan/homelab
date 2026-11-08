@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily read-only dark-web malware crawl + known-feed pull
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
