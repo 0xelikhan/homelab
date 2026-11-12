@@ -20,15 +20,26 @@ read-only, nothing TLP:RED or AMBER+STRICT, no .onion or forum access, no file d
 
 1. `intel-items --since 7d --source ransomware.live --limit 1000` (all victims)
    `intel-items --since 7d --source ransomware.live --sector financ --limit 300` (financial sector)
-2. OpenCTI reports for the week: `python3 tools/clis/opencti.py list reports --created-after <ISO-7d-ago> --limit 100`,
-   then repeat with `--after <end_cursor>` while `has_next_page` is true, up to 10 pages (~1,000 reports;
-   the CLI returns at most 100 per call). Triage titles first: drop general business, tech and crypto news
-   with no security content, then analyse what remains. Report how many were pulled and kept.
-   Window on each report's `published` date (last 7 days, future dates count as today), not on when
-   OpenCTI ingested it: new feeds backfill older posts.
-3. MISP: `misp-recent --since 7d` — the week's feed additions per feed, with C2 / malware / phishing samples.
+2. OpenCTI reports for the week: use the windowed, de-duplicated pull (the feed set ingests ~9k
+   reports/day, duplicated 100-400x, so a raw page cap sees a tiny slice of the week):
+   `python3 ~/.hermes/skills/homelab/octi-window.py --hours 168 --max-pages 400`
+   It pages the week server-side, de-duplicates by title, keeps only reports published in the last
+   7 days (future = today), and returns each unique report with its real `url`, an `id`, and a
+   `dup_count`. The list is title-level and compact on purpose (the week holds thousands of reports), so
+   abstracts are not dumped here. Use each `url` verbatim for links. Triage on titles and `dup_count`
+   (drop general business and webinar noise; highest `dup_count` = syndicated non-news). For every report
+   you keep, read its summary before writing it up: `python3 tools/clis/opencti.py get <id>
+   --no-relationships`, and use the `description` field (ignore the RSS "The post ... appeared first on"
+   tail); it is a summary, not the full article, so keep confidence calibrated accordingly. This triage
+   is internal: do not
+   report pull, keep or de-duplication counts, or any collection mechanics, in the roundup. (This
+   complements the 7 daily briefs in `~/briefs/daily/`, your primary source for the week.)
+3. MISP: `misp-recent --since 7d` for the week's feed additions, with C2 / malware / phishing samples.
    Feed events keep their original date and are never published, so `misp.py search-events --from` misses
-   them; use it only for analyst-created events. Use `/lookup-misp` to correlate the week's IOCs.
+   them; use it only for analyst-created events. Use `/lookup-misp` to correlate the week's IOCs. Do not
+   list per-feed attribute counts in the roundup: routine blocklist, brute-force and Tor-exit volumes are
+   telemetry. Give at most a single total line, and surface a feed item only when it corroborates a
+   reported IOC.
 4. Previous daily briefs: `~/briefs/daily/` for the last 7 days.
 5. Exploitation status: `cve-status --kev-new 7d`, and `cve-status CVE-...` for every CVE you mention.
 6. Red Canary baseline: the most recent Threat Detection Report top techniques
@@ -70,11 +81,10 @@ are local with no limit.
 ## 3. Assess (deep-dives that match the week's activity)
 
 - Ransomware trends: `/ransomware-ecosystem` (groups, affiliates, shifts). Other type patterns as they
-  appear: `/infostealers`, `/initial-access-brokers`, `/carding-financial-fraud`,
-  `/phishing-social-engineering`, `/supply-chain-threats`, `/hacktivism`.
+  appear: `/infostealers`, `/initial-access-brokers`, `/carding-financial-fraud`. For phishing,
+  supply-chain and hacktivism patterns, use `/cyber-espionage` and load the matching cell.
 - Actors: `/threat-actor-profiling` for PIR-3 actors with new reporting; `/campaign-tracking` for live
-  campaigns; the state-nexus skills as attribution points (`/china-`, `/russia-`, `/iran-`,
-  `/dprk-cyber-espionage`).
+  campaigns; `/cyber-espionage` for state-nexus attribution points (China, Russia, Iran, DPRK cells).
 - Vulnerabilities: `/vulnerability-intelligence` plus `cve-status` for KEV + EPSS.
 - Malware families central to the week: `/malware-analysis`.
 
@@ -86,17 +96,21 @@ are local with no limit.
   OpenCTI's current ATT&CK; show occurrence and confidence). Compare with the Red
   Canary top list: **rising** (seen, outside Red Canary top 10), **steady** (in both), **quiet**
   (Red Canary top but absent).
-- Grade every item: `/source-provenance`, `/source-assessment`, `/quality-of-information-check`;
-  Admiralty codes; `/confidence-levels` and `/likelihood-language` on judgements; `/tlp-guide` labels.
-- Apply a structured technique to the week's key judgements: `/ach` for ambiguous attribution or
-  competing explanations, `/structured-analytic-techniques`, `/key-assumptions-check`, `/devils-advocacy`.
-- **Strategic look-ahead**: `/horizon-scanning` for what is emerging, and `/threat-assessment` for the
-  strategic judgement (what this means for the financial sector over the next weeks). Use
-  `/cti-hyperloop` to split the findings into strategic, operational and tactical levels.
+- Grade every item with `/analytic-rigor` (claim grading, source-to-originator resolution, the
+  confidence ceiling) alongside `/source-assessment` and `/source-provenance`; Admiralty codes;
+  `/confidence-levels` and `/likelihood-language` on judgements at the item level. No global TLP banner
+  or confidence-cap caveat; mark an individual item only if it is more sensitive than the rest.
+- Apply `/analytic-rigor` to the week's key judgements: the key assumptions check, ACH for ambiguous
+  attribution or competing explanations, and a devil's-advocate pass. Fold the result into the affected
+  item's confidence and caveat inline; do not add a separate labeled note.
+- **Strategic look-ahead**: use the `/cyber-espionage` horizon cell for what is emerging, and
+  `/analytic-rigor` (threat-assessment structure) for the strategic judgement on what this means for
+  the financial sector over the coming weeks. Split findings into strategic, operational and tactical
+  levels.
 - **Source quality** (`/feedback-loops`): for the week's OpenCTI reports, count kept vs dropped-as-noise
-  per feed (by the report's source URL domain). List the feeds that contributed the most kept reports
-  and the feeds that produced only noise. Append the table with the week number to
-  `~/briefs/reference/source-quality.md` so trends build up over time.
+  per feed (by the report's source URL domain). Append the table with the week number to
+  `~/briefs/reference/source-quality.md` so trends build up over time. This is internal collection tuning:
+  keep it in that reference file and do not print the feed-quality table in the roundup body.
 
 ## 5. Detection engineering
 
@@ -107,21 +121,23 @@ or `gap`. Then draft `/sigma-writing`, `/yara-writing` and `/kql-writing` detect
 
 ## 6. Write
 
-Use `/intelligence-writing` and `/writing-assessments`. No length limit. Order:
+Use `/intelligence-writing` (and `/analytic-rigor` for assessment structure). The roundup starts at the
+Bottom line: do not open with a collection summary and do not report collection or enrichment mechanics
+anywhere (counts pulled or kept, per-feed totals, enrichment targets or shortfalls, the feed-quality
+table). Do not print a TLP banner or a global evidence-basis or confidence-cap preamble; the roundup is
+lab-internal to one reader. The reader wants findings, not process. Order:
 
 1. **Bottom line** — the strategic takeaways with so-what.
 2. **Ransomware** — financial-sector victims table first, then per-group counts and ecosystem notes.
-3. **Exploited vulnerabilities** — this week's KEV additions with EPSS and actions.
+3. **Exploited vulnerabilities** — this week's KEV additions with EPSS and actions. A KEV CVE earns its
+   place on its own and does not need independent corroboration; collapse routine non-exploited CVE-feed
+   entries into a single line, no enumeration.
 4. **ATT&CK trend table** — technique, this-week count, Red Canary rank, status (rising/steady/quiet),
-   lab coverage (covered/partial/gap).
+   lab coverage (covered/partial/gap). List only techniques actually seen this week; summarise Red Canary
+   top techniques absent this week in one line, not a row each.
 5. **Threat actors & campaigns** — profiles and updates.
 6. **Strategic look-ahead** — horizon scan + threat assessment, by strategic / operational / tactical level.
 7. **Detections** — the Sigma/YARA/KQL drafted this week, gaps first.
-8. **Source quality** — top contributing feeds and noise-only feeds this week.
-9. **Intelligence gaps & next collection**.
-10. **Sources & ratings**.
-
-Before saving, run the `/quality-control` checklist over the roundup and fix what it flags.
 
 Save to `~/briefs/weekly/YYYY-Www.md`. Optionally emit a STIX 2.1 bundle with `/stix-bundle` to
 `~/briefs/weekly/YYYY-Www.stix.json`. Apply `/intelligence-sharing` and `/tlp-guide` to anything that
