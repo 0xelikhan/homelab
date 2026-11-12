@@ -23,15 +23,17 @@ Checks the CTI stack every run, and every other machine only while it is running
 | MISP web, API and containers | `docker compose up -d` |
 | OpenCTI API and containers, TheHive and Cortex | `docker compose up -d`, restart TheHive and Cortex |
 | OpenCTI connectors active, ingest backlog | |
+| OpenCTI connector errors (3 or more real errors in 2 hours from one connector, API ping errors ignored) | |
+| ImportExternalReference memory (under 1 GiB; above that it stops saving articles) | restart the connector |
 | OpenCTI file handles (RabbitMQ, workers under 80 % of the limit) | |
 | OpenCTI message bus (RabbitMQ management API answers) | [octi-restart](octi-restart): RabbitMQ, platform, then workers and connectors |
 | OpenCTI connector queues (no queue holding messages without a consumer) | `octi-restart connectors` |
-| RSS entity extraction (rss-extract ran in the last 2 hours, ImportDocument backlog under 3000) | run rss-extract |
+| RSS entity extraction (rss-extract ran in the last 2 hours, last run did not time out, ImportDocument backlog under 250000) | run rss-extract |
 | MISP feeds pulling (more than 2 feeds failing on the last fetch) | |
 | Hermes Telegram gateway | restart the gateway |
 | Hermes collector | run the collector |
 | Hermes brief jobs | resend a brief whose Telegram delivery failed (once per brief) |
-| IOC export ran in the last 5 hours | run the export |
+| IOC export ran in the last 5 hours and the lists changed in the last 24 hours | run the export |
 | Backups (errors in the last 2 days) | |
 | Host disk over 85 %, host RAM under 1 GB | |
 | Wazuh manager, indexer, dashboard | restart the stopped service |
