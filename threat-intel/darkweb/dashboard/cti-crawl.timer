@@ -1,0 +1,10 @@
+[Unit]
+Description=Dark-web malware crawl (every 3h); known-feed self-limits to ~1 pull/day
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=3h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

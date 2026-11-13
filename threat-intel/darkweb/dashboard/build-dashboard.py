@@ -12,10 +12,11 @@ Sections:
     Tor (no account needed), cached, re-checked every 6h.
   - Deduped directory of ~2500 sources (collapsible).
 """
-import json, os, re, html, datetime, urllib.request, urllib.error
+import json, os, re, html, datetime, glob, urllib.request, urllib.error
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+QDIR = os.path.expanduser("~/quarantine")   # where triage.py parks verified executables
 SRC = json.load(open(os.path.join(HERE, "sources.json"), encoding="utf-8"))
 ACTIVE = {"ONLINE", "VALID"}
 UA = "cti-dashboard"
@@ -91,9 +92,45 @@ def rl_group_map():
     return m
 
 
-# ---------- dark-web malware early-warning (hashes + executables) ----------
+# ---------- dark-web malware early-warning (verified executables) ----------
+def verified_samples():
+    """Executables that triage.py pulled, statically verified as malicious, and parked in
+    ~/quarantine for the REs. Reads the triage table directly (triage runs before this)."""
+    import sqlite3
+    try:
+        c = sqlite3.connect(os.path.join(HERE, "malware-findings.db"))
+        return c.execute("SELECT sha256, source_name, filetype, known, family, reasons, caps, last_seen "
+                         "FROM (SELECT *, ts AS last_seen FROM triage WHERE kept=1) "
+                         "ORDER BY last_seen DESC LIMIT 120").fetchall()
+    except Exception:
+        return []
+
+
+QPORT = 8777                                  # local-only quarantine file server (serve-quarantine.sh)
+QBASE = "http://127.0.0.1:%d" % QPORT         # Tor Browser blocks file://, but reaches localhost
+
+
+def quarantine_entry(sha):
+    """(folder_abspath, sample_filename, findings_text) for a kept sample, or ('','','')
+    if it has been pruned. Each sample lives in ~/quarantine/<sha>/ with its findings.txt."""
+    if not sha:
+        return "", "", ""
+    folder = os.path.join(QDIR, sha)
+    if os.path.isdir(folder):
+        samp = [f for f in os.listdir(folder)
+                if f not in ("findings.txt", "rule.yar") and not f.startswith(".")]
+        find = ""
+        try:
+            find = open(os.path.join(folder, "findings.txt"), encoding="utf-8").read()
+        except Exception:
+            pass
+        return folder, (samp[0] if samp else ""), find
+    hits = glob.glob(os.path.join(QDIR, sha + ".*"))     # legacy flat layout fallback
+    return (hits[0], os.path.basename(hits[0]), "") if hits else ("", "", "")
+
+
 def malware_block():
-    """Primary panel: hashes + executables mined by the read-only crawler from all dark-web sources."""
+    """Primary panel: verified malicious executables pulled + statically triaged for the REs."""
     path = os.path.join(HERE, "malware-findings.json")
     try:
         d = json.load(open(path, encoding="utf-8"))
@@ -107,33 +144,22 @@ def malware_block():
             out.append(f'<a href="{html.escape(u)}">{html.escape(lbl)}</a>')
         return " ".join(out) or '<span class="x">?</span>'
 
-    def badges(f):
-        b = '<span class="newb">NEW</span> ' if f.get("new") else ''
-        tier = f.get("tier")
-        if tier == "high":
-            b += '<span class="tierh">high</span> '
-        elif tier == "med":
-            b += '<span class="tierm">med</span> '
-        if f.get("family"):
-            b += f'<span class="famb">{html.escape(f["family"])}</span>'
-        return b.strip()
+    KNOWN_SRCS = ("malwarebazaar", "malshare")
 
-    rows = []
-    for f in d.get("hashes", [])[:120]:
-        rows.append(f'<tr><td class="mono">{html.escape(f["hash"])}</td><td>{f["type"]}</td>'
-                    f'<td>{badges(f)}</td><td class="d">{html.escape(f.get("last",""))}</td>'
-                    f'<td class="src">{srclinks(f.get("source_links",[]), f.get("sources",[]))}</td></tr>')
-    htable = "".join(rows) or '<tr><td colspan="5" class="x">No hashes yet.</td></tr>'
+    def _row(sha, known):
+        kb = '<span class="knownb">KNOWN</span> ' if known else '<span class="newb">NEW</span> '
+        folder, _s, _f = quarantine_entry(sha or "")
+        qloc = (f'<span class="qf">&#128193; {html.escape(folder.rstrip("/"))}/</span>'
+                if folder else '<span class="x">(pruned from quarantine)</span>')
+        return (f'<li>{kb}<span class="mono">{html.escape(sha or "")}</span><br>{qloc}</li>')
 
-    exrows = []
-    for e in d.get("executables", [])[:80]:
-        links = e.get("links", [])
-        ref = html.escape(e["ref"][:72])
-        linked = f'<a href="{html.escape(links[0])}">{ref}</a>' if links else ref
-        nb = '<span class="newb">NEW</span> ' if e.get("new") else ''
-        exrows.append(f'<li>{nb}{linked} <span class="x">({e.get("site_count",1)} site, {html.escape(e.get("last",""))})</span></li>')
+    dw_rows, kn_rows = [], []
+    for sha, src, ftype, known, fam, reasons, caps, _ts in verified_samples():
+        (kn_rows if (src or "").lower() in KNOWN_SRCS else dw_rows).append(_row(sha, known))
     exblock = (f'<details open><summary>Executables</summary>'
-               f'<ul class="dir">{"".join(exrows)}</ul></details>' if exrows else '')
+               f'<ul class="dir exe">{"".join(dw_rows)}</ul></details>' if dw_rows else '')
+    knblock = (f'<details open><summary>Known</summary>'
+               f'<ul class="dir exe">{"".join(kn_rows)}</ul></details>' if kn_rows else '')
 
     fams = d.get("sample_families", [])
     famline = ''
@@ -157,9 +183,9 @@ def malware_block():
                       f'{srclinks(t.get("links",[]), t.get("sources",[]))}</li>')
     tkblock = (f'<details open><summary>Telegram bot C2 tokens</summary>'
                f'<ul class="dir">{"".join(tkrows)}</ul></details>' if tkrows else '')
-    return ('<div class="mw">' + famline +
-            '<table><thead><tr><th>Hash</th><th>Type</th><th>Flag</th><th>Last seen</th><th>Found on</th></tr></thead>'
-            f'<tbody>{htable}</tbody></table>{exblock}{tkblock}</div>')
+    exmain = exblock or '<p class="x">No verified executables yet.</p>'
+    # (dropped the scraped "sample_families" line: names claimed in posts, not tied to samples)
+    return ('<div class="mw">' + exmain + knblock + tkblock + '</div>')
 
 
 # ---------- live ransomware feed + new-since-last ----------
@@ -318,6 +344,11 @@ details{{background:#161b22;border:1px solid #21262d;border-radius:6px;margin:6p
 details summary{{cursor:pointer;font-weight:600;padding:6px 0}}
 details.dead{{background:transparent;border:0;margin:4px 0}} details.dead summary{{color:#6e7681;font-weight:400;font-size:12px}}
 ul.dir{{list-style:none;margin:4px 0 8px;padding:0;columns:2;column-gap:28px}} ul.dir li{{break-inside:avoid;padding:1px 0;font-size:13px}}
+ul.exe{{columns:1}} ul.exe li{{padding:4px 0}}
+a.qf{{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#3fb950;word-break:break-all}}
+details.why{{background:#0d1117;border:1px solid #21262d;margin:4px 0 2px;padding:0 8px}}
+details.why summary{{color:#d29922;font-size:11px;font-weight:600;padding:4px 0}}
+details.why pre{{white-space:pre-wrap;word-break:break-word;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace;color:#adbac7;margin:2px 0 8px}}
 ul.tg{{margin:4px 0 8px;padding-left:18px;font-size:12px;color:#adbac7}} ul.tg li{{padding:2px 0}}
 .b{{font-size:10px;font-weight:700}} .c{{color:#6e7681;font-weight:400;font-size:12px}} .x{{color:#6e7681;font-size:11px}}
 .err{{color:#d29922;font-size:12px}} .foot{{color:#6e7681;font-size:11px;margin-top:30px;border-top:1px solid #21262d;padding-top:10px}}
@@ -326,6 +357,7 @@ ul.tg{{margin:4px 0 8px;padding-left:18px;font-size:12px;color:#adbac7}} ul.tg l
 .mono{{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;word-break:break-all;color:#e6edf3}}
 code{{background:#0d1117;border:1px solid #21262d;border-radius:4px;padding:1px 4px;font-size:11px;color:#79c0ff}}
 .newb{{background:#238636;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
+.knownb{{background:#6e5494;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
 .famb{{background:#30363d;color:#d29922;font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid #3d4350}}
 .fams{{margin:2px 0 10px}} .fams span{{margin:0 4px 5px 0;display:inline-block}}
 .tierh{{background:#da3633;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px}}
