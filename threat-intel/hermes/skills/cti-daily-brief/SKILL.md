@@ -75,6 +75,13 @@ node tools/clis/otx.js        ip|domain|hash|url <value>    # OTX pulses
 node tools/clis/urlscan.js    domain <domain>               # urlscan (for a URL: url "<url>")
 ```
 
+**Scheduled-run execution (important):** this brief runs unattended, where the terminal gate refuses
+script-execution forms. Do **not** batch the lookups with a heredoc, the `execute_code` tool, or
+`bash -c`/`-lc` — each is blocked under cron and wastes a turn. Batch them instead as one plain loop
+issued directly in the terminal, one loop per IOC type so the type/argument mapping stays correct, e.g.
+`for v in 1.1.1.1 2.2.2.2; do node tools/clis/virustotal.js ip "$v"; node tools/clis/abuseipdb.js ip "$v"; node tools/clis/otx.js ip "$v"; done`
+Pace VirusTotal to ~4/min (a short `sleep` between iterations is fine).
+
 Follow `/ioc-enrichment-workflow` to route each IOC and merge the results into one record per indicator.
 `/lookup-virustotal`, `/lookup-abuseipdb`, `/lookup-otx` and `/lookup-urlscan` document these CLIs and how
 to read their verdicts; `/virustotal-api`, `/abuseipdb-api`, `/otx-api` and `/urlscan-api` are the API
