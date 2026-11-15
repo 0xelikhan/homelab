@@ -65,8 +65,12 @@ actually run the lookup CLIs below from the repo root (`~/cti-skills`); reading 
 is not enrichment.
 
 Pick the most significant indicators from the collection phase (OpenCTI indicators with score >= 70, plus
-IPs / domains / hashes / URLs named in the reports and the ransomware / Telegram posts). Enrich **at least
-the top 10, up to ~25**. For each, run the matching command:
+IPs / domains / hashes / URLs named in the reports and the ransomware / Telegram posts). The working budget
+is **~30 indicators per run** (10 is a floor, not a target). When the significant indicators form one
+labelled cluster (e.g. a shared `meshagent` IP set), enrich the **whole cluster** up to that budget rather
+than stopping at an arbitrary 10 and leaving the rest; truncating a set mid-way is worse than a few extra
+lookups. Only when the eligible set genuinely exceeds the budget do you enrich a representative subset, and
+even then you say nothing about what was left out. For each, run the matching command:
 
 ```bash
 node tools/clis/virustotal.js ip|domain|hash|url <value>   # detection ratio + verdict
@@ -93,9 +97,14 @@ Local context (no rate limit, use freely): `/lookup-opencti` (`python3 tools/cli
 (`/indicator-pivoting`) and run a full `/ip-investigation` / `/domain-investigation` /
 `/hash-investigation` / `/url-investigation` on the few most important.
 
-Record every lookup result inline in the By-PIR section: VT detection ratio and verdict, AbuseIPDB score,
-OTX pulse count. If a specific IOC cannot be enriched, mark that one IOC `not enriched (<reason>)` inline.
-Do not write enrichment targets, counts or shortfalls into the brief (no "only 8 of 10 enriched"), and do
+Record every lookup result as a plain per-IOC line in the By-PIR section: the IP/domain (with a short
+context tag), then VT detection ratio and verdict, AbuseIPDB score, OTX pulse count. If a specific IOC
+cannot be enriched, mark that one IOC `not enriched (<reason>)` inline. Nothing wraps the list: no preamble
+sentence stating that the indicators were looked up or with which tools ("All ten were looked up with VT,
+AbuseIPDB and OTX"), no set-level Admiralty/corroboration verdict paragraph ("Rating for the set: [F6]..."),
+and no trailer about what was skipped ("the remaining ~15 IPs were not individually enriched"). Put the
+so-what in the parent item's assessment as a short clause (e.g. "clean across all three, watchlist not
+block"), not in a framing paragraph. Do not write enrichment targets, counts or shortfalls anywhere, and do
 not cap the brief's confidence just because some IOCs were skipped.
 
 **Do not run** `tools/clis/shodan.*`, `tools/clis/greynoise.*` or censys — their free tiers are too small.
@@ -137,17 +146,20 @@ At 10-25 IOCs once or twice a day this stays well within free limits. Export the
 When a finding gives usable behaviour or indicators, draft detections: `/sigma-writing` (host/SIEM),
 `/yara-writing` (files/malware), `/kql-writing` (Sentinel/Defender). Put them in the detection section.
 
-Check each technique in the brief against the lab's controls with `/control-coverage-mapping`, using
-`~/briefs/reference/wazuh-coverage.json` (ATT&CK Navigator layer of techniques with a Wazuh rule:
-green = verified in the lab, light green = custom rule not yet tested, yellow = built-in rule only).
-Mark each technique `covered`, `partial` or `gap`, and draft detections for the gaps first.
+Internally, check the day's techniques against `~/briefs/reference/wazuh-coverage.json` with
+`/control-coverage-mapping` only to decide what is worth drafting: prioritise techniques with no custom
+lab rule. Built-in Wazuh rules do not count as coverage and are not of interest. This check never reaches
+the brief: the detection section carries the drafted rules alone (see the write-up order), no coverage
+table, no built-in-rule counts, no covered/partial/gap status.
 
 ## 6. Write
 
 Use `/intelligence-writing` for structure and BLUF (and `/analytic-rigor` for assessment structure).
 Include everything that earns its place. The brief starts at the Bottom line: do not open with a
 collection summary and do not report collection or enrichment mechanics anywhere (counts pulled or kept,
-pulls that did not run, per-feed totals, enrichment targets or shortfalls). Do not print a TLP banner or a
+pulls that did not run, per-feed totals, enrichment targets or shortfalls, or the IOC-export outcome such
+as "no vetted IOCs, not exported"; the `/ioc-export` step is a silent side artifact the brief never narrates).
+Do not print a TLP banner or a
 global evidence-basis or confidence-cap preamble; the brief is lab-internal to one reader. The reader
 wants findings, not process. Order:
 
@@ -168,8 +180,9 @@ wants findings, not process. Order:
    `KEV: no`, `EPSS: 0.42 (97th percentile)`, and the action. New-to-KEV first. Collapse every other
    CVE-feed entry into a single line, no enumeration: `N routine CVE-feed entries, no exploitation reported`.
 5. **Ransomware (PIR-2)** — new financial-sector victims first, then counts by group.
-6. **Detections** — coverage per technique (covered / partial / gap), then the Sigma/YARA/KQL drafted
-   this cycle.
+6. **Detections** — the drafted Sigma/YARA/KQL rules only, each tagged with its ATT&CK technique ID.
+   No coverage table, no built-in-rule counts, no covered/partial/gap status, no prose before or after a
+   rule beyond a one-line "adapt to your log source" note where a rule needs it.
 
 Save to `~/briefs/daily/YYYY-MM-DD.md`. Optionally emit a STIX 2.1 bundle with `/stix-bundle` to
 `~/briefs/daily/YYYY-MM-DD.stix.json`. Apply `/intelligence-sharing` and `/tlp-guide` to anything that

@@ -127,17 +127,22 @@ are local with no limit.
 
 ## 5. Detection engineering
 
-Map the week's techniques against the lab's controls with `/control-coverage-mapping`, using
-`~/briefs/reference/wazuh-coverage.json` (ATT&CK Navigator layer: green = verified in the lab, light
-green = custom rule not yet tested, yellow = built-in Wazuh rule only). Mark each `covered`, `partial`
-or `gap`. Then draft `/sigma-writing`, `/yara-writing` and `/kql-writing` detections, gaps first.
+Map the week's techniques against `~/briefs/reference/wazuh-coverage.json` with `/control-coverage-mapping`
+only to fill the ATT&CK trend table's coverage column and to decide what to draft. Built-in Wazuh rules do
+not count as coverage: a technique with only built-in rules is a `gap`, not `partial`; `partial` means a
+custom rule exists but is untested, `covered` means verified in the lab. Draft `/sigma-writing`,
+`/yara-writing` and `/kql-writing` detections for the gaps first. The detections section itself prints the
+drafted rules alone (see the write-up order), no coverage text and no built-in-rule counts.
 
 ## 6. Write
 
 Use `/intelligence-writing` (and `/analytic-rigor` for assessment structure). The roundup starts at the
 Bottom line: do not open with a collection summary and do not report collection or enrichment mechanics
 anywhere (counts pulled or kept, per-feed totals, enrichment targets or shortfalls, the feed-quality
-table). Do not print a TLP banner or a global evidence-basis or confidence-cap preamble; the roundup is
+table, or the IOC-export outcome such as "no vetted IOCs, not exported"; `/ioc-export` is a silent side
+artifact). Record enriched IOCs as plain per-IOC lines with no wrapper: no "all N were looked up" preamble,
+no set-level Admiralty/corroboration verdict paragraph, no "the remaining IPs were not enriched" trailer.
+Do not print a TLP banner or a global evidence-basis or confidence-cap preamble; the roundup is
 lab-internal to one reader. The reader wants findings, not process. Order:
 
 1. **Bottom line** — the strategic takeaways with so-what.
@@ -150,7 +155,8 @@ lab-internal to one reader. The reader wants findings, not process. Order:
    top techniques absent this week in one line, not a row each.
 5. **Threat actors & campaigns** — profiles and updates.
 6. **Strategic look-ahead** — horizon scan + threat assessment, by strategic / operational / tactical level.
-7. **Detections** — the Sigma/YARA/KQL drafted this week, gaps first.
+7. **Detections** — the Sigma/YARA/KQL drafted this week, gaps first, each tagged with its ATT&CK
+   technique ID. Rules only: no coverage table, no built-in-rule counts, no covered/partial/gap status.
 
 Save to `~/briefs/weekly/YYYY-Www.md`. Optionally emit a STIX 2.1 bundle with `/stix-bundle` to
 `~/briefs/weekly/YYYY-Www.stix.json`. Apply `/intelligence-sharing` and `/tlp-guide` to anything that
