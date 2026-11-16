@@ -189,6 +189,9 @@ def ghsa(con):
 
 
 OSM_RSS = "https://opensourcemalware.com/rss.xml"
+# Their weekly podcast shares the feed ("The OpenSourceMalware Show #29", slugs
+# opensourcemalwareshow-episodeNN / opensourcemalware-show-episodeNN). Not intel.
+OSM_SKIP = re.compile(r"opensourcemalware[\s-]*show", re.I)
 
 
 def opensourcemalware(con):
@@ -198,7 +201,6 @@ def opensourcemalware(con):
     so this is an early-warning / trending source, not an IOC feed. Refreshed every 6 hours."""
     if not due(con, "osm:fetched", 6):
         return "fresh (refreshed every 6 hours)"
-    first_run = con.execute("SELECT 1 FROM state WHERE k='osm:fetched'").fetchone() is None
     cutoff = datetime.now(timezone.utc) - timedelta(days=7)
     root = ET.fromstring(fetch(OSM_RSS, limit=5_000_000))
     n = 0
@@ -207,6 +209,8 @@ def opensourcemalware(con):
         if not title:
             continue
         link = (it.findtext("link") or "").strip()
+        if OSM_SKIP.search(title + " " + link):
+            continue
         desc = (it.findtext("description") or "").strip()
         try:
             pub_dt = parsedate_to_datetime(it.findtext("pubDate") or "")
@@ -215,7 +219,7 @@ def opensourcemalware(con):
             pub_iso = pub_dt.isoformat()
         except (TypeError, ValueError):
             pub_dt, pub_iso = None, ""
-        if first_run and pub_dt and pub_dt < cutoff:   # don't dump the back catalogue on first run
+        if pub_dt and pub_dt < cutoff:   # never ingest the back catalogue (the feed carries months of it)
             continue
         n += add(con, "opensourcemalware", "supply-chain", title, desc, link, pub_iso)
     mark(con, "osm:fetched", time.time())
