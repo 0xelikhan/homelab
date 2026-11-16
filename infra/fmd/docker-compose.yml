@@ -1,0 +1,12 @@
+services:
+  fmd:
+    image: registry.gitlab.com/fmd-foss/fmd-server:0.16.0
+    container_name: fmd
+    ports:
+      - "0.0.0.0:8080:8080"
+    volumes:
+      - ./fmddata/db/:/var/lib/fmd-server/db/
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges]
