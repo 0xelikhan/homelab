@@ -81,10 +81,14 @@ Pace VirusTotal to ~4/min (a short `sleep` between iterations is fine).
 Follow `/ioc-enrichment-workflow` for any net-new IOC and merge it into one record per indicator.
 `/lookup-virustotal`, `/lookup-abuseipdb`, `/lookup-otx` and `/lookup-urlscan` document these CLIs and how
 to read their verdicts. Local context (no rate limit) stays available for pivoting on a strong net-new
-hit: `/lookup-opencti`, `/lookup-misp`, `/lookup-ransomwarelive`, and `/indicator-pivoting`. Record each
-new result inline (VT ratio + verdict, AbuseIPDB score, OTX pulses); mark any you could not enrich as
-`not enriched (<reason>)`. Export the week's vetted IOCs (the dailies' set plus any net-new) with
-`/ioc-export`.
+hit: `/lookup-opencti`, `/lookup-misp`, `/lookup-ransomwarelive`, and `/indicator-pivoting`. Free-tier
+pivots (no key, on a strong net-new hit only): `/lookup-hudsonrock`
+(`node tools/clis/hudsonrock.js domain|email|ip <value>`) for infostealer credential exposure, best for
+the financial-sector and credential-exposure PIRs, and `/lookup-circl-onion`
+(`node tools/clis/circl-onion.js onion <addr>`) to date a dark-web onion and pull crypto addresses
+without touching Tor. Record each new result inline (VT ratio + verdict, AbuseIPDB score, OTX pulses);
+mark any you could not enrich as `not enriched (<reason>)`. Export the week's vetted IOCs (the dailies'
+set plus any net-new) with `/ioc-export`.
 
 **Do not run** `tools/clis/shodan.*`, `tools/clis/greynoise.*` or censys — free tiers too small.
 Pace VirusTotal (4/min, 500/day); AbuseIPDB, OTX and URLScan are generous; OpenCTI/MISP/ransomware.live

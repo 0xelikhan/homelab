@@ -97,6 +97,15 @@ Local context (no rate limit, use freely): `/lookup-opencti` (`python3 tools/cli
 (`/indicator-pivoting`) and run a full `/ip-investigation` / `/domain-investigation` /
 `/hash-investigation` / `/url-investigation` on the few most important.
 
+Free-tier pivots (no key, use on a strong hit, not per-IOC): `/lookup-hudsonrock`
+(`node tools/clis/hudsonrock.js domain|email|ip <value>`) checks Hudson Rock infostealer
+stealer-logs for credential exposure; it is the strongest signal for the financial-sector
+targeting and credential-exposure PIRs, so run it on a named victim domain, a key corporate
+email, or a suspect IP. `/lookup-circl-onion` (`node tools/clis/circl-onion.js onion <addr>`)
+dates a dark-web onion (first/last seen) and pulls any crypto addresses and page titles without
+touching Tor; use it on an onion named in a ransomware or leak post. Both are observe-only
+retrieval; never visit the onion or the exposed host.
+
 Record every lookup result as a plain per-IOC line in the By-PIR section: the IP/domain (with a short
 context tag), then VT detection ratio and verdict, AbuseIPDB score, OTX pulse count. If a specific IOC
 cannot be enriched, mark that one IOC `not enriched (<reason>)` inline. Nothing wraps the list: no preamble
