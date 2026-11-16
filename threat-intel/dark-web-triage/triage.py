@@ -228,6 +228,56 @@ def capa_malicious(path):
     return mal, caps[:30], ""
 
 
+def script_obfuscation(path):
+    """High-precision obfuscation / LOLBin heuristic for scripts (JS/VBS/PS/batch/python).
+    Returns (suspicious, reasons[]). capa cannot analyse non-PE content, so a novel
+    obfuscated dark-web script with no YARA hit would otherwise score benign and be
+    dropped. This catches the dropper/stager shapes (decode-then-exec chains, encoded-
+    command LOLBins, fully-escaped payloads, long char-code arrays) while staying quiet on
+    ordinary minified or admin code (validated: 0 FP across minified jQuery/React/webpack,
+    JWT atob, Invoke-Command remoting, document.write HTML, python base64)."""
+    try:
+        with open(path, "rb") as f:
+            raw = f.read(4 * 1024 * 1024)
+    except Exception:
+        return False, []
+    t = raw.decode("utf-8", "replace")
+    low = t.lower()
+    reasons = []
+    # 1) decode -> exec chain: an exec sink fed a decode primitive. Sinks are matched as
+    #    CALLS only; the bare "function" keyword is excluded (lowercasing cannot tell the
+    #    Function() constructor from a function declaration, and it is everywhere in minified JS).
+    EXEC   = (r"(?:eval|settimeout|setinterval|setimmediate|document\.write|exec|execute|"
+              r"executeglobal|compile|iex|invoke-expression|invoke-command)\s*\(")
+    DECODE = (r"(?:atob|unescape|fromcharcode|frombase64string|b64decode|marshal\.loads|"
+              r"zlib\.decompress|codecs\.decode|gzipstream|deflatestream)\s*\(")
+    exec_sink = re.search(EXEC, low)
+    chain = re.search(EXEC + r".{0,60}?" + DECODE, low, re.S)
+    # decode primitive aliased to a variable (stored, not called) with an exec sink present:
+    # the indirection pattern eval(_0x(...)) where _0x = atob.
+    alias  = re.search(r"[=:]\s*(?:atob|unescape|frombase64string|fromcharcode)\b\s*[;,)]", low)
+    fnctor = re.search(r"\b(?:Function|eval)\s*\(\s*['\"]", t)   # constructor fed a string (case-sensitive)
+    if chain or (alias and (exec_sink or fnctor)):
+        reasons.append("obf:decode-exec")
+    # 2) encoded-command / LOLBin launcher strings (strong on their own)
+    if (re.search(r"(?:powershell|pwsh)[^\n]{0,80}(?:-e\b|-ec\b|-enc\b|-encodedcommand\b)", low)
+            or re.search(r"-encodedcommand\b", low)
+            or (re.search(r"frombase64string", low) and re.search(r"invoke-expression|\biex\b|\.invoke\(", low))
+            or re.search(r"certutil[^\n]{0,40}-decode", low)
+            or re.search(r"regsvr32[^\n]{0,40}/i:http", low)
+            or re.search(r"mshta[^\n]{0,40}http", low)
+            or re.search(r"bitsadmin[^\n]{0,40}/transfer", low)):
+        reasons.append("obf:lolbin")
+    # 3) body that is mostly escape sequences (a fully-encoded payload, not a stray escape)
+    esc = len(re.findall(r"\\x[0-9a-f]{2}|\\u[0-9a-f]{4}|%[0-9a-f]{2}", low))
+    if esc >= 50 and esc * 4 > len(t) * 0.25:
+        reasons.append("obf:escaped%d" % esc)
+    # 4) long char-code decode array
+    if re.search(r"fromcharcode\s*\(\s*[0-9]{1,3}(?:\s*,\s*[0-9]{1,3}){40,}", low):
+        reasons.append("obf:charcode")
+    return (len(reasons) > 0), reasons
+
+
 def decide(path, cat):
     """Return (keep_bool, known_bool, family[], reasons[], caps[], imphash, max_entropy, packed)."""
     reasons, family, caps = [], [], []
@@ -245,7 +295,12 @@ def decide(path, cat):
     pk, exo, labels = die_scan(path)                  # fast: packer / toolchain
     if pk:  reasons.append("die:packed")
     if exo: reasons.append("die:exotic")
-    keep = bool(known or anom or pk or exo)
+    obf = False
+    if cat == "script":                               # capa can't read scripts: heuristic safety net
+        obf, oreasons = script_obfuscation(path)
+        if obf:
+            reasons += oreasons
+    keep = bool(known or anom or pk or exo or obf)
     if cat in ("pe", "elf"):                           # capa on EVERY analyzable binary (not lazy)
         mal, caps, cerr = capa_malicious(path)         # -> caps always recorded, for real fidelity
         if mal:
@@ -624,6 +679,9 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
     mb = [r.split(":", 1)[1] for r in rs if r.startswith("mb:")]
     if mb:
         L.append("  malwarebazaar:  %s" % ", ".join(mb))
+    obf = [r.split(":", 1)[1] for r in rs if r.startswith("obf:")]
+    if obf:
+        L.append("  obfuscation:    %s" % ", ".join(obf))
     is_pe = cat == "pe" and os.path.exists(sample)
     if is_pe and _pe_tls(sample):
         L.append("  tls callback:   present (code runs before main; common anti-debug)")
@@ -636,7 +694,7 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
         L.append("  capa behaviors:")
         for cap in cps:
             L.append("    %s" % cap)
-    if not (pe or die or ya or mb or cps or packed or crypto):
+    if not (pe or die or ya or mb or obf or cps or packed or crypto):
         L.append("  flagged on: %s" % (", ".join(rs) if rs else "triage heuristics"))
     if is_pe:
         cert = _pe_cert(sample)
