@@ -79,6 +79,10 @@ Plain Python, no model, runs every 30 minutes as a separate user. Writes to `/sr
 | Source | What it collects |
 |---|---|
 | ransomware.live | Recent leak-site victims |
+| RansomLook | Recent leak-site posts, an independent cross-source to ransomware.live |
 | CISA KEV | New Known Exploited Vulnerabilities entries. The full catalog is kept in `/srv/intel/kev.json`, refreshed every 6 hours |
+| Exploit-DB | New public exploits that name a CVE (every 6 h); feeds `cve-status --pre-kev` |
+| GHSA | GitHub-reviewed critical/high advisories with a CVE (every 6 h) |
+| OpenSourceMalware | New software-supply-chain write-ups (malicious npm/PyPI/RubyGems/Go/crate/extension packages). Headline and link only, no IOCs in the feed; early-warning source, every 6 h |
 | deepdarkCTI | Changes to its lists of groups, forums and channels |
 | Telegram | Text of new posts from the public channels in `/srv/intel/telegram-channels.txt`, read through each channel's public web preview. No account, no joining, no media, no links followed. Channels with the preview turned off are skipped. A channel's first read keeps only the last 48 hours |

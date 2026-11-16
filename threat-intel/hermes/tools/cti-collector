@@ -13,10 +13,14 @@ Sources:
   exploit-db       new public exploits that carry a CVE (files_exploits.csv, every 6 hours)
   ghsa             GitHub-reviewed critical/high advisories with a CVE (every 6 hours)
   The last two feed `cve-status --pre-kev`, which ranks CVEs not yet in KEV.
-Usage: collector.py [ransomware|ransomlook|kev|exploitdb|ghsa|deepdarkcti|telegram|all]
+  opensourcemalware software-supply-chain write-ups (malicious npm/PyPI/etc packages).
+                   Headline + link only; no IOCs in the feed. Early warning, every 6 hours.
+Usage: collector.py [ransomware|ransomlook|kev|exploitdb|ghsa|deepdarkcti|opensourcemalware|telegram|all]
 """
 import csv, hashlib, io, json, os, re, sqlite3, sys, time, urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 
 DB = "/srv/intel/intel.db"
@@ -184,6 +188,40 @@ def ghsa(con):
     return n
 
 
+OSM_RSS = "https://opensourcemalware.com/rss.xml"
+
+
+def opensourcemalware(con):
+    """OpenSourceMalware feed: software-supply-chain write-ups (malicious packages across
+    npm, PyPI, RubyGems, Go, crates, VS Code / Open VSX extensions, AI skill registries).
+    Headline + link only; the feed carries no hashes or C2 (those live in the linked article),
+    so this is an early-warning / trending source, not an IOC feed. Refreshed every 6 hours."""
+    if not due(con, "osm:fetched", 6):
+        return "fresh (refreshed every 6 hours)"
+    first_run = con.execute("SELECT 1 FROM state WHERE k='osm:fetched'").fetchone() is None
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    root = ET.fromstring(fetch(OSM_RSS, limit=5_000_000))
+    n = 0
+    for it in root.iterfind(".//item"):
+        title = (it.findtext("title") or "").strip()
+        if not title:
+            continue
+        link = (it.findtext("link") or "").strip()
+        desc = (it.findtext("description") or "").strip()
+        try:
+            pub_dt = parsedate_to_datetime(it.findtext("pubDate") or "")
+            if pub_dt.tzinfo is None:
+                pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+            pub_iso = pub_dt.isoformat()
+        except (TypeError, ValueError):
+            pub_dt, pub_iso = None, ""
+        if first_run and pub_dt and pub_dt < cutoff:   # don't dump the back catalogue on first run
+            continue
+        n += add(con, "opensourcemalware", "supply-chain", title, desc, link, pub_iso)
+    mark(con, "osm:fetched", time.time())
+    return n
+
+
 def deepdarkcti(con):
     """Diff the deepdarkCTI source lists. New/removed entries are intelligence in themselves."""
     files = ["ransomware_gang.md", "forum.md", "markets.md", "telegram_threat_actors.md",
@@ -313,7 +351,8 @@ if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
     con = db()
     for name, fn in (("ransomware", ransomware), ("ransomlook", ransomlook), ("kev", kev), ("exploitdb", exploitdb),
-                     ("ghsa", ghsa), ("deepdarkcti", deepdarkcti), ("telegram", telegram)):
+                     ("ghsa", ghsa), ("opensourcemalware", opensourcemalware), ("deepdarkcti", deepdarkcti),
+                     ("telegram", telegram)):
         if what in (name, "all"):
             try:
                 print(f"{name}: {fn(con)}")
