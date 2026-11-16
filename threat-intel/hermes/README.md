@@ -15,6 +15,10 @@ hermes cron list
 hermes -z "what do we know about <indicator>" --skills cti-ioc-lookup
 ```
 
+## Provisioning
+
+[`setup-hermes.sh`](setup-hermes.sh) runs once as the `hermes` user inside CT 120: clones/updates the Liberty91 cti-skills repo, links the skills, installs the Python deps for the CLI lookups, pulls MITRE ATT&CK data, and writes Hermes' `.env`. It reads API keys from `~/.setup-secrets` ([template](setup-secrets.example)) and deletes that file after reading. The keys are a subset of `pve:/root/lab-secrets.env`; they never live in this repo. MISP is `10.10.10.21`, OpenCTI is `10.10.10.22:8080` (co-located on VM 112).
+
 ## Scheduled jobs
 
 All three deliver to Telegram. Failures are sent there too.

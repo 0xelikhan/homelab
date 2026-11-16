@@ -1,0 +1,3 @@
+# Never commit the live secrets the provisioner reads, or Hermes' rendered .env.
+.setup-secrets
+.env
