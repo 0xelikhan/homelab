@@ -1,0 +1,3 @@
+tools/** text eol=lf
+systemd/** text eol=lf
+nftables.conf text eol=lf
