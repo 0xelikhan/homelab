@@ -10,9 +10,12 @@ Sources:
                    Without an account it reads each channel's public web preview (t.me/s/<channel>).
                    With /srv/intel/telegram.env (TG_API_ID / TG_API_HASH) it uses the API instead.
                    Media is never downloaded and links are never followed.
-Usage: collector.py [ransomware|kev|deepdarkcti|telegram|all]
+  exploit-db       new public exploits that carry a CVE (files_exploits.csv, every 6 hours)
+  ghsa             GitHub-reviewed critical/high advisories with a CVE (every 6 hours)
+  The last two feed `cve-status --pre-kev`, which ranks CVEs not yet in KEV.
+Usage: collector.py [ransomware|ransomlook|kev|exploitdb|ghsa|deepdarkcti|telegram|all]
 """
-import hashlib, json, os, re, sqlite3, sys, time, urllib.request
+import csv, hashlib, io, json, os, re, sqlite3, sys, time, urllib.request
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 
@@ -41,9 +44,19 @@ def add(con, source, kind, title, body="", url="", published="", meta=None):
     return cur.rowcount
 
 
-def fetch(url, limit=20_000_000):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60) as r:
+def fetch(url, limit=20_000_000, headers=None):
+    with urllib.request.urlopen(urllib.request.Request(url, headers={**UA, **(headers or {})}), timeout=60) as r:
         return r.read(limit).decode("utf-8", "replace")
+
+
+def due(con, key, hours):
+    """True when the source keyed `key` has not been fetched in the last `hours`."""
+    row = con.execute("SELECT v FROM state WHERE k=?", (key,)).fetchone()
+    return not row or time.time() - float(row[0]) >= hours * 3600
+
+
+def mark(con, key, value):
+    con.execute("INSERT OR REPLACE INTO state VALUES (?,?)", (key, str(value)))
 
 
 def ransomware(con):
@@ -95,6 +108,79 @@ def kev(con):
                  v.get("dateAdded", ""),
                  {k: v.get(k) for k in ("cveID", "dueDate", "knownRansomwareCampaignUse", "requiredAction")})
     con.execute("INSERT OR REPLACE INTO state VALUES (?,?)", ("kev:seen", data.get("catalogVersion", "")))
+    return n
+
+
+EDB_CSV = "https://gitlab.com/exploit-database/exploitdb/-/raw/main/files_exploits.csv"
+CVE_RE = re.compile(r"CVE-\d{4}-\d{4,}", re.I)
+
+
+def exploitdb(con):
+    """Exploit-DB: record each new exploit that names a CVE. A public exploit is the strongest
+    early sign a CVE will be exploited, often well before CISA adds it to KEV."""
+    if not due(con, "edb:fetched", 6):
+        return "fresh (refreshed every 6 hours)"
+    last = int((con.execute("SELECT v FROM state WHERE k='edb:last_id'").fetchone() or ["0"])[0])
+    # First run: only the last 7 days, so the archive is not reported as new
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat() if last == 0 else ""
+    n, top = 0, last
+    for r in csv.DictReader(io.StringIO(fetch(EDB_CSV, limit=40_000_000))):
+        try:
+            eid = int(r["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        top = max(top, eid)
+        cves = sorted({c.upper() for c in CVE_RE.findall(r.get("codes") or "")})
+        added = r.get("date_added") or r.get("date_published") or ""
+        if eid <= last or not cves or (cutoff and added < cutoff):
+            continue
+        n += add(con, "exploit-db", "exploit", f"{', '.join(cves)}: {r.get('description', '')}", "",
+                 f"https://www.exploit-db.com/exploits/{eid}", added,
+                 {"cves": cves, "edb_id": eid, "type": r.get("type"), "platform": r.get("platform"),
+                  "verified": r.get("verified") == "1"})
+    mark(con, "edb:last_id", top)
+    mark(con, "edb:fetched", time.time())
+    return n
+
+
+GHSA_API = "https://api.github.com/advisories?type=reviewed&per_page=100&sort=published&direction=desc"
+
+
+def ghsa(con):
+    """GitHub-reviewed advisories, critical and high with a CVE only. Unauthenticated (60/hour),
+    so it runs every 6 hours and reads at most 5 pages."""
+    if not due(con, "ghsa:fetched", 6):
+        return "fresh (refreshed every 6 hours)"
+    row = con.execute("SELECT v FROM state WHERE k='ghsa:last_published'").fetchone()
+    last = row[0] if row else (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    n, top, url = 0, last, GHSA_API
+    for _ in range(5):
+        req = urllib.request.Request(url, headers={**UA, "Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            page, link = json.loads(r.read().decode("utf-8", "replace")), r.headers.get("Link", "")
+        older = False
+        for a in page:
+            pub = a.get("published_at") or ""
+            if pub <= last:
+                older = True
+                break
+            top = max(top, pub)
+            cve = a.get("cve_id")
+            if not cve or a.get("severity") not in ("critical", "high"):
+                continue
+            pkgs = sorted({f"{(v.get('package') or {}).get('ecosystem', '')}:{(v.get('package') or {}).get('name', '')}"
+                           for v in a.get("vulnerabilities") or []})[:10]
+            n += add(con, "ghsa", "advisory", f"{cve}: {a.get('summary', '')}", (a.get("description") or "")[:1500],
+                     a.get("html_url", ""), pub,
+                     {"cve": cve.upper(), "ghsa_id": a.get("ghsa_id"), "severity": a.get("severity"),
+                      "cvss": (a.get("cvss") or {}).get("score"), "epss": (a.get("epss") or {}).get("percentage"),
+                      "packages": pkgs})
+        nxt = re.search(r'<([^>]+)>;\s*rel="next"', link)
+        if older or not nxt:
+            break
+        url = nxt.group(1)
+    mark(con, "ghsa:last_published", top)
+    mark(con, "ghsa:fetched", time.time())
     return n
 
 
@@ -226,7 +312,8 @@ def telegram(con):
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
     con = db()
-    for name, fn in (("ransomware", ransomware), ("ransomlook", ransomlook), ("kev", kev), ("deepdarkcti", deepdarkcti), ("telegram", telegram)):
+    for name, fn in (("ransomware", ransomware), ("ransomlook", ransomlook), ("kev", kev), ("exploitdb", exploitdb),
+                     ("ghsa", ghsa), ("deepdarkcti", deepdarkcti), ("telegram", telegram)):
         if what in (name, "all"):
             try:
                 print(f"{name}: {fn(con)}")

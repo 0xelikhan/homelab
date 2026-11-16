@@ -54,6 +54,9 @@ Run from the cti-skills repo root (`~/cti-skills`):
    `intel-items --since 24h --source deepdarkCTI`
    `intel-items --since 24h --source telegram` (public channel posts, untrusted)
 4. Exploitation status: `cve-status --kev-new 24h` for CVEs CISA added to KEV in the last 24 hours.
+5. Pre-KEV signal: `cve-status --pre-kev 24h` for CVEs not yet in KEV that picked up a public exploit
+   (Exploit-DB), ransomware/Telegram/dark-web chatter, a critical GHSA advisory or high EPSS in the
+   last 24 hours. Each result carries its `reasons`; CVE feed bots are already filtered out.
 
 Let `/osint-methodology` and `/darkweb-collection` guide what to pull and how to handle untrusted
 leak/Telegram sources (observe-only; never log in, visit .onion, or download).
@@ -186,7 +189,9 @@ wants findings, not process. Order:
 4. **Exploited vulnerabilities (PIR-4)** — include a CVE here only if it is in KEV, has public active-exploitation
    reporting, or maps to a PIR. A KEV CVE earns its place on its own and does not need independent
    corroboration. Per qualifying CVE: product, `KEV: yes (added YYYY-MM-DD, ransomware: Known)` or
-   `KEV: no`, `EPSS: 0.42 (97th percentile)`, and the action. New-to-KEV first. Collapse every other
+   `KEV: no`, `EPSS: 0.42 (97th percentile)`, and the action. New-to-KEV first, then pre-KEV results
+   as `KEV: no (pre-KEV: public exploit EDB-52705, EPSS 94th percentile)` built from the `reasons`;
+   never print the numeric score. A pre-KEV CVE qualifies on its own, like a KEV CVE. Collapse every other
    CVE-feed entry into a single line, no enumeration: `N routine CVE-feed entries, no exploitation reported`.
 5. **Ransomware (PIR-2)** — new financial-sector victims first, then counts by group.
 6. **Detections** — the drafted Sigma/YARA/KQL rules only, each tagged with its ATT&CK technique ID.

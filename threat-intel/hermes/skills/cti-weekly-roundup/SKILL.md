@@ -36,7 +36,9 @@ Then add only the top-ups that are genuinely weekly-scope and cheap (local, no p
    (financial sector). The dailies are daily snapshots; this gives the full week's victim count and
    catches late-posted or back-dated claims an individual daily missed.
 3. KEV week view: `cve-status --kev-new 7d`, plus `cve-status CVE-...` for any CVE a daily named without
-   a KEV / EPSS lookup. Closes the exploited-vulnerability section cleanly.
+   a KEV / EPSS lookup. Then `cve-status --pre-kev 7d` for the week's CVEs that show exploitation
+   signals but are not in KEV yet; re-check any the dailies flagged as pre-KEV, since CISA may have
+   added them since. Closes the exploited-vulnerability section cleanly.
 4. Red Canary baseline: the cached top-techniques file `~/briefs/reference/redcanary-top-techniques.md`
    (refresh from https://redcanary.com/threat-detection-report/techniques/ only when a new yearly report
    is out).
@@ -151,9 +153,10 @@ lab-internal to one reader. The reader wants findings, not process. Order:
 
 1. **Bottom line** — the strategic takeaways with so-what.
 2. **Ransomware** — financial-sector victims table first, then per-group counts and ecosystem notes.
-3. **Exploited vulnerabilities** — this week's KEV additions with EPSS and actions. A KEV CVE earns its
-   place on its own and does not need independent corroboration; collapse routine non-exploited CVE-feed
-   entries into a single line, no enumeration.
+3. **Exploited vulnerabilities** — this week's KEV additions with EPSS and actions, then pre-KEV CVEs
+   labeled from their `reasons` (no numeric score), noting any that a daily flagged and CISA has since
+   added. A KEV or pre-KEV CVE earns its place on its own and does not need independent corroboration;
+   collapse routine non-exploited CVE-feed entries into a single line, no enumeration.
 4. **ATT&CK trend table** — technique, this-week count, Red Canary rank, status (rising/steady/quiet),
    lab coverage (covered/partial/gap). List only techniques actually seen this week; summarise Red Canary
    top techniques absent this week in one line, not a row each.
