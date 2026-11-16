@@ -761,8 +761,8 @@ def triage_one(c, path, url, src, passwords, depth=0):
 
     # Executable: full verdict (YARA attribution + PE anomaly + DIE packer + capa behaviour).
     keep, known, fam, reasons, caps, imp, ent, packed = decide(path, cat)
-    if not keep and src in KNOWN_FEEDS and cat in ("pe", "elf"):
-        keep = True; reasons = list(reasons) + ["feed:forced"]   # recall canary: known-feed sample must land
+    if not keep and src in KNOWN_FEEDS and cat in ("pe", "elf", "macho", "script"):
+        keep = True; reasons = list(reasons) + ["feed:forced"]   # recall canary: known-feed sample (incl. script malware) must land
     if not keep:
         if _review_candidate(cat, src, known, packed, reasons, caps):
             _review_file(c, path, sha, url, src, size, desc, cat, fam,
