@@ -1,0 +1,8 @@
+# Guard against dropping secrets or local state here. Code and skill docs only.
+.env
+*.env
+*.key
+*token*.json
+*keys*.json
+*secret*
+node_modules/
