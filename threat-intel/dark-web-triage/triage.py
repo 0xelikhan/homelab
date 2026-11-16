@@ -23,6 +23,7 @@ import urllib.request, urllib.error, urllib.parse, socket
 HERE   = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import fetchers                       # resolve() + unpack() live next to this file
+import scriptscan                     # static script-loader verdict (PS / WSH / VBS / batch / HTA)
 TG_INTAKE = os.path.expanduser("~/tg-intake")   # files the Telegram collector drops here
 ARCHIVE_DESC = re.compile(r"7-zip|rar archive|zip archive|gzip|tar archive|cabinet|"
                           r"ace archive|arj|xz compressed|bzip2", re.I)
@@ -247,7 +248,8 @@ def script_obfuscation(path):
     # 1) decode -> exec chain: an exec sink fed a decode primitive. Sinks are matched as
     #    CALLS only; the bare "function" keyword is excluded (lowercasing cannot tell the
     #    Function() constructor from a function declaration, and it is everywhere in minified JS).
-    EXEC   = (r"(?:eval|settimeout|setinterval|setimmediate|document\.write|exec|execute|"
+    # Not a method call: RegExp.exec( / re.compile( are everywhere (lodash, pdf.js FP'd on .exec).
+    EXEC   = (r"(?<![\w.$])(?:eval|settimeout|setinterval|setimmediate|document\.write|exec|execute|"
               r"executeglobal|compile|iex|invoke-expression|invoke-command)\s*\(")
     DECODE = (r"(?:atob|unescape|fromcharcode|frombase64string|b64decode|marshal\.loads|"
               r"zlib\.decompress|codecs\.decode|gzipstream|deflatestream)\s*\(")
@@ -255,8 +257,10 @@ def script_obfuscation(path):
     chain = re.search(EXEC + r".{0,60}?" + DECODE, low, re.S)
     # decode primitive aliased to a variable (stored, not called) with an exec sink present:
     # the indirection pattern eval(_0x(...)) where _0x = atob.
-    alias  = re.search(r"[=:]\s*(?:atob|unescape|frombase64string|fromcharcode)\b\s*[;,)]", low)
-    fnctor = re.search(r"\b(?:Function|eval)\s*\(\s*['\"]", t)   # constructor fed a string (case-sensitive)
+    # A bare variable, not a member export (lodash: "lodash.unescape = unescape;").
+    alias  = re.search(r"(?<![\w.$])[\w$]+\s*[=:]\s*(?:atob|unescape|frombase64string|fromcharcode)\b\s*[;,)]", low)
+    # constructor fed a string (case-sensitive); Function('return this') is the global-object idiom
+    fnctor = re.search(r"\b(?:Function|eval)\s*\(\s*['\"](?!return this['\"])", t)
     if chain or (alias and (exec_sink or fnctor)):
         reasons.append("obf:decode-exec")
     # 2) encoded-command / LOLBin launcher strings (strong on their own)
@@ -278,14 +282,20 @@ def script_obfuscation(path):
     return (len(reasons) > 0), reasons
 
 
-def decide(path, cat):
-    """Return (keep_bool, known_bool, family[], reasons[], caps[], imphash, max_entropy, packed)."""
+def decide(path, cat, script=None):
+    """Return (keep_bool, known_bool, family[], reasons[], caps[], imphash, max_entropy, packed).
+    `script` is scriptscan's (malicious, hits) when the caller already scanned a script."""
     reasons, family, caps = [], [], []
     imp, ent, packed = "", 0.0, False
     family = yara_families(path)                       # fast: attribution
     known = bool(family)
     if known:
         reasons.append("yara:" + family[0])
+    smal = False
+    if cat == "script":
+        smal, shits = script if script else scriptscan.verdict(path)
+        if smal:
+            reasons.append("script:" + "+".join(shits))
     if cat == "pe":
         imp, ent, packed, nimp, tls, anom = pe_anomaly(path)
         if anom:
@@ -300,7 +310,7 @@ def decide(path, cat):
         obf, oreasons = script_obfuscation(path)
         if obf:
             reasons += oreasons
-    keep = bool(known or anom or pk or exo or obf)
+    keep = bool(known or anom or pk or exo or obf or smal)
     if cat in ("pe", "elf"):                           # capa on EVERY analyzable binary (not lazy)
         mal, caps, cerr = capa_malicious(path)         # -> caps always recorded, for real fidelity
         if mal:
@@ -679,6 +689,9 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
     mb = [r.split(":", 1)[1] for r in rs if r.startswith("mb:")]
     if mb:
         L.append("  malwarebazaar:  %s" % ", ".join(mb))
+    sc = [r.split(":", 1)[1] for r in rs if r.startswith("script:")]
+    if sc:
+        L.append("  script loader:  %s" % sc[0].replace("+", ", "))
     obf = [r.split(":", 1)[1] for r in rs if r.startswith("obf:")]
     if obf:
         L.append("  obfuscation:    %s" % ", ".join(obf))
@@ -694,7 +707,7 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
         L.append("  capa behaviors:")
         for cap in cps:
             L.append("    %s" % cap)
-    if not (pe or die or ya or mb or obf or cps or packed or crypto):
+    if not (pe or die or ya or mb or sc or obf or cps or packed or crypto):
         L.append("  flagged on: %s" % (", ".join(rs) if rs else "triage heuristics"))
     if is_pe:
         cert = _pe_cert(sample)
@@ -808,6 +821,15 @@ def triage_one(c, path, url, src, passwords, depth=0):
             return inner_kept
         # installer IS a PE stub -> fall through and analyse the stub too (payload already done)
 
+    # Script loaders: `file` calls most .ps1/.vbs/.bat "ASCII text", so scan any text-ish file and
+    # promote it to "script" when either script heuristic fires (loader shape here, obfuscation in
+    # decide()); otherwise it stays data/not-exe.
+    script = None
+    if cat in ("script", "data") and size <= scriptscan.MAX_BYTES and scriptscan.is_scriptish(desc, path):
+        script = scriptscan.verdict(path)
+        if cat == "data" and (script[0] or script_obfuscation(path)[0]):
+            cat = "script"
+
     # Non-executable: still worth a YARA pass for known-bad maldocs / webshells / skimmers.
     if cat not in KEEP_EXE:
         fam = yara_families(path) if size <= YARA_MAX_BYTES else []
@@ -818,7 +840,7 @@ def triage_one(c, path, url, src, passwords, depth=0):
         return inner_kept
 
     # Executable: full verdict (YARA attribution + PE anomaly + DIE packer + capa behaviour).
-    keep, known, fam, reasons, caps, imp, ent, packed = decide(path, cat)
+    keep, known, fam, reasons, caps, imp, ent, packed = decide(path, cat, script)
     if not keep and src in KNOWN_FEEDS and cat in ("pe", "elf", "macho", "script"):
         keep = True; reasons = list(reasons) + ["feed:forced"]   # recall canary: known-feed sample (incl. script malware) must land
     if not keep:
