@@ -76,6 +76,11 @@ _SAMPLE = (r"exe|dll|scr|sys|msi|ps1|psm1|vbs|vbe|jse|wsf|hta|bat|cmd|pif|lnk|ja
            r"apk|dex|elf|ko|bin|iso|img|vhd|7z|rar|dmg|deb|rpm|cab|ace|arj|docm|xlsm")
 EXE_RE      = re.compile(r"\b([\w\-]{1,60}\.(?:%s))\b" % _SAMPLE, re.I)
 SAMPLE_LINK = re.compile(r"\.(?:%s)(\?|#|$)" % _SAMPLE, re.I)
+# data-container extensions: on leak/ransomware channels these are VICTIM-DATA dumps, not
+# malware samples, so they only count when a malware family is named next to them.
+ARCHIVE_EXT = {"7z", "rar", "zip", "gz", "tar", "iso", "img", "cab", "ace", "arj", "z"}
+# split-archive parts (fs.part46.rar, x.r01, y.z15, a.7z.001): one dump fragmented into many
+MULTIPART_RE = re.compile(r"part\d+\.(?:rar|7z|zip)|\.r\d\d\b|\.z\d\d\b|\.7z\.\d+\b", re.I)
 HREF_RE     = re.compile(r'href=["\']([^"\']+)["\']', re.I)
 SRC_RE      = re.compile(r'src=["\']([^"\']+)["\']', re.I)
 NOISE_RE = re.compile(
@@ -121,11 +126,22 @@ except Exception:
     ACTOR_RE = None
 def _mal_ctx(s):
     return bool(CTX_RE.search(s) or CTX_RU.search(s) or CTX_INTL.search(s))
+# malware-TOOL language (builder/FUD/loader/crypted/RAT...) — the words actors DO use to
+# advertise a sample — vs stolen-DATA language (leak/database/records). Used to tell a
+# malware-sample archive from a victim-data dump: family attribution is a poor signal
+# because actors rarely name the family in their own posts, so we key on tool-context.
+TOOL_CTX = re.compile(
+    r"\b(build(?:er)?|stub|loader|crypt(?:er|or|ed)|pack(?:er|ed)|obfuscat|fud|"
+    r"undetect(?:able|ed)?|dropper|inject(?:or|ion|ed)?|payload|c2|c&c|keylog|\brat\b|"
+    r"botnet|miner|clipper|nulled|cracked|source\s?code|exploit\s?kit|trojan|backdoor|"
+    r"rootkit|\bworm\b|\bmalware\b)\b", re.I)
 # strings that look like a hash but are web tokens / cache-busters, not malware
 TOKEN_CTX = re.compile(
     r"csrf|cache|nonce|\btoken\b|session|integrity|etag|anti.?cache|_wpnonce|"
     r"apikey|api.key|secret|hmac|\btx\b|txid|transaction|blockchain|block\s?hash|"
     r"confirmation|escrow|\bcommit\b|\bblob\b|gitlab|github|"
+    r"gravatar|/avatar/|imageobject|nodeid|node_id|parseint|zindex|wp-content|wp-includes|"
+    r"var\s+\w+\s*=|"
     r"\.(png|jpe?g|gif|css|js|svg|woff2?|ico|map|webp)\b", re.I)
 # hex that is a file-host download/share ID or torrent hash, not a malware sample hash
 # (warez forums are dense with these: rapidgator/rg.to/mega/... URL path IDs, magnet btih)
@@ -185,6 +201,8 @@ def init_db():
     CREATE TABLE IF NOT EXISTS tokens(
         token TEXT, source_url TEXT, source_name TEXT, category TEXT, context TEXT,
         first_seen REAL, last_seen REAL, PRIMARY KEY(token, source_url));
+    CREATE TABLE IF NOT EXISTS candidates(
+        url TEXT PRIMARY KEY, password TEXT, source_name TEXT, ts REAL);
     """)
     try:
         c.execute("ALTER TABLE exes ADD COLUMN family TEXT")
@@ -346,23 +364,33 @@ def mine(text, force_ctx=False):
         return fc
     for m in EXE_RE.finditer(clean):
         ref = m.group(1)
-        if NOISE_RE.search(ref):
+        if NOISE_RE.search(ref) or MULTIPART_RE.search(ref):   # web asset or split-archive part
             continue
         i = m.start()
         ctx = clean[max(0, i - 90): i + len(ref) + 90]
         if not (force_ctx or _mal_ctx(ctx)):
             continue
-        k = ref[:160]
         fam = _fam_near(ctx)
+        ext = ref.rsplit(".", 1)[-1].lower()
+        # an archive is a malware sample only with tool-context (or a family); otherwise it's
+        # a victim-data dump posted by a leak/ransomware channel.
+        if ext in ARCHIVE_EXT and not (fam or TOOL_CTX.search(ctx) or CTX_RU.search(ctx)):
+            continue
+        k = ref[:160]
         if k not in exes or (fam and not exes[k]):
             exes[k] = fam
     for m in HREF_RE.finditer(text):
         link = m.group(1)
         if not (SAMPLE_LINK.search(link) and not NOISE_RE.search(link)):
             continue
-        em = re.search(r"\.([a-z0-9]{1,5})(?:\?|#|$)", link.lower())
-        if em and em.group(1) in EXE_AMBIG and not (force_ctx or _mal_ctx(low)):
+        if MULTIPART_RE.search(link):               # split data archive (fs.part46.rar, .r01)
             continue
+        em = re.search(r"\.([a-z0-9]{1,5})(?:\?|#|$)", link.lower())
+        ext = em.group(1) if em else ""
+        if ext in EXE_AMBIG and not (force_ctx or _mal_ctx(low)):
+            continue
+        if ext in ARCHIVE_EXT and not (FAMILY_RE.search(low) or TOOL_CTX.search(low) or CTX_RU.search(low)):
+            continue                                # archive link needs tool-context or a family on the page
         exes.setdefault(link[:200], None)
     fams = set()
     for x in FAMILY_RE.finditer(clean):
@@ -478,6 +506,34 @@ def pick_slice(c, targets):
     return sl[:SOURCES_RUN]
 
 
+# download links the triage step can actually fetch (direct sample links + a few file hosts)
+CAND_URL = re.compile(r'https?://[^\s"\'<>)]{6,400}', re.I)
+CAND_HOST = re.compile(r"pixeldrain\.com|gofile\.io|mega(?:\.nz|\.co\.nz)|mediafire|anonfiles|"
+                       r"\.(?:exe|dll|scr|sys|7z|zip|rar|gz|bin|img|iso|vbs|ps1|bat|cmd|"
+                       r"hta|jar|apk|dex|elf|msi|cab|lnk)(?:\?|#|$)", re.I)   # no 'com'(domain),'js'(forum scaffolding)
+CAND_PW = re.compile(r"(?:pass(?:word)?|pwd|\bpw\b|пароль|key)\s*[:=]\s*"
+                     r"[\"'`]?([^\s\"'`<>]{1,40})", re.I)
+# web infrastructure / CDN assets that look like fetchable files but are page scaffolding
+CAND_SKIP = re.compile(r"github|gstatic|googleapis|cloudflare|jsdelivr|cdnjs|unpkg|fontawesome|"
+                       r"jquery|bootstrap|react|/assets/|/static/|/vendor/|\.min\.|avatars?\.|"
+                       r"gravatar|w3\.org|schema\.org|s3\.amazonaws|wp-content|wp-includes|"
+                       r"b-cdn\.net|bunnycdn|google-analytics|googletagmanager|gtag/js|"
+                       r"\.(?:css|woff2?|ttf|svg|png|jpe?g|gif|ico|webp|map)(?:\?|#|$)", re.I)
+
+def store_candidates(c, text, clean, name, now):
+    """Record fetchable sample links + any password hint near them, for triage.py to pull."""
+    page_pw = [m.group(1) for m in CAND_PW.finditer(clean)][:3]
+    for m in CAND_URL.finditer(text):
+        u = m.group(0).rstrip('.,);\'"')
+        if not CAND_HOST.search(u) or CAND_SKIP.search(u):   # fetchable sample, not a CDN asset
+            continue
+        i = m.start()
+        win = text[max(0, i - 300): i + len(u) + 160]
+        pw = [x.group(1) for x in CAND_PW.finditer(win)] or page_pw
+        c.execute("INSERT OR IGNORE INTO candidates(url,password,source_name,ts) VALUES(?,?,?,?)",
+                  (u[:400], "\x1f".join(dict.fromkeys(pw))[:200], name, now))
+
+
 def store_page(c, url, name, cat, text, now):
     clean0 = WS_RE.sub(" ", TAG_RE.sub(" ", text))
     # Page-wide context admission (force_ctx) is reserved for a NON-ENGLISH page that the
@@ -490,6 +546,7 @@ def store_page(c, url, name, cat, text, now):
         if tr and _mal_ctx(tr):
             page_mal = True
     hashes, exes, fams = mine(text, page_mal)
+    store_candidates(c, text, clean0, name, now)        # fetchable sample links -> triage queue
     page_fam = next(iter(fams)) if len(fams) == 1 else None
     for h, htype, ctx, fam, context in hashes:
         fam = fam or page_fam
