@@ -437,3 +437,10 @@ zerotistic (Reverse Engineering & Low-Level),https://zerotistic.blog/rss.xml,yes
 Zimperium (Vendor),https://zimperium.com/blog/rss.xml,yes
 Zscaler ThreatLabz (Vendor),https://www.zscaler.com/blogs/feeds/security-research,yes
 Zynap (Vendor),https://www.zynap.com/blog/feed,yes
+Cisco PSIRT,https://sec.cloudapps.cisco.com/security/center/psirtrss20/CiscoSecurityAdvisory.xml,yes
+Palo Alto Networks PSIRT,https://security.paloaltonetworks.com/rss.xml,yes
+SonicWall PSIRT,https://psirtapi.global.sonicwall.com/api/v1/feed/rss.xml,yes
+Red Hat Product Security,https://www.redhat.com/en/rss/blog/channel/security,yes
+Cofense,https://cofense.com/feed/,yes
+Permiso Security,https://permiso.io/blog/rss.xml,yes
+JPCERT/CC,https://www.jpcert.or.jp/english/rss/jpcert-en.rdf,yes

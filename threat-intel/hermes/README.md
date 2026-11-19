@@ -28,10 +28,13 @@ All three deliver to Telegram. Failures are sent there too.
 | daily-cti-brief | 07:00 every day | short summary message, full brief attached as a file |
 | weekly-cti-roundup | Monday 08:00 | short summary message, full roundup attached as a file |
 | fin-ransomware-flash | every 2 h, only when new financial-sector victims appear | flash note |
+| exploit-flash | every 15 min, only when something escalates | alert list, no model |
 
 The briefs attach the saved Markdown file with a `MEDIA:<path>` line at the end of the response.
 
 The flash uses `~/.hermes/scripts/fin-victims-monitor.py`. A victim counts as financial when ransomware.live tags its sector as Financial Services. When the sector is missing, the victim name or domain decides. Victims the source mis-tags as financial go in `~/.hermes/scripts/fin-exclude.txt`, one name per line.
+
+exploit-flash runs [`scripts/exploit-flash.py`](scripts/exploit-flash.py) from `~/.hermes/scripts/` as a script-only job: its output goes to Telegram as is, and an empty run sends nothing. It alerts on new CISA KEV entries, OpenCTI report titles that say a flaw is being exploited now, and recent CVEs with EPSS >= 0.5 that are not in KEV yet. A story goes out once; repeats from other outlets within 72 h are dropped. `exploit-flash.py --backtest 7d` shows what it would have sent. State is in `~/.cache/exploit-flash.json`; delete it to re-baseline.
 
 Run one now: `hermes cron run <job id>` (from `hermes cron list`). Copies are kept in `~/.hermes/cron/output/` and `~/briefs/`. If a Telegram delivery fails, the [health check](../../infrastructure/monitoring/README.md) resends it once.
 
