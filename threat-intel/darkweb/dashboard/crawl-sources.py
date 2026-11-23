@@ -30,7 +30,7 @@ Features:
 Bounded: each run spends a fixed fetch budget, then stops. Automated via a
 systemd --user timer.
 """
-import os, re, json, time, sqlite3, datetime, urllib.request, urllib.error, socket
+import os, re, sys, json, time, sqlite3, datetime, urllib.request, urllib.error, socket
 from urllib.parse import urljoin, urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -118,7 +118,7 @@ try:
         _ACTOR_CANON.setdefault(_al.lower(), _canon)
     _STOP = {"play","royal","akira","medusa","storm","spider","bear","panda","kitten",
              "gold","inc","team","group","hunters","meta","mars","qilin","cl0p","clop",
-             "dark halo","the dukes","cactus","money message","rhysida"}
+             "dark halo","the dukes","cactus","money message","rhysida","global"}
     _terms = sorted({k for k in _ACTOR_CANON if len(k) >= 4 and k not in _STOP}, key=len, reverse=True)
     ACTOR_RE = re.compile(r"\b(" + "|".join(re.escape(t) for t in _terms) + r")\b", re.I) if _terms else None
 except Exception:
@@ -141,8 +141,24 @@ TOKEN_CTX = re.compile(
     r"apikey|api.key|secret|hmac|\btx\b|txid|transaction|blockchain|block\s?hash|"
     r"confirmation|escrow|\bcommit\b|\bblob\b|gitlab|github|"
     r"gravatar|/avatar/|imageobject|nodeid|node_id|parseint|zindex|wp-content|wp-includes|"
+    r"pgp|\btox\b|verification\s+hash|fingerprint|inscription|genesis|bitcoin|\bbtc\b|ethereum|wallet|"
     r"var\s+\w+\s*=|"
     r"\.(png|jpe?g|gif|css|js|svg|woff2?|ico|map|webp)\b", re.I)
+# a hash has to be ANNOUNCED as one: a 64-hex string with no cue nearby is almost always a
+# signature, token or ID (98% of the first 5,141 "hashes" were AWS presigned-URL signatures)
+HASH_CUE = re.compile(
+    r"sha-?256|sha-?1\b|\bmd5\b|\bhash(?:es)?\b|\bioc|\bsample|virustotal|\bvt\b|bazaar|"
+    r"any\.run|tria\.ge|hybrid-analysis|joesandbox|unpac\.me|malshare|yara|\bfile\s*:", re.I)
+# the hex is the VALUE of a signature / token / key field (X-Amz-Signature=..., "token":"...")
+KV_SECRET = re.compile(
+    r"(?:signature|\bsig\b|token|nonce|secret|hmac|\bkey\b|apikey|session|auth|credential|"
+    r"x-amz-[\w-]*|etag|checksum|\bid\b)[\w-]*[\"']?\s*[:=]\s*[\"']?\s*$", re.I)
+# the hex is the tail segment of a JWT-like token (base64.base64.<hex>)
+JWT_TAIL = re.compile(r"[A-Za-z0-9_-]{8,}\.$")
+# a hash of a stolen-data archive on a leak site (PIXELLEAKS "Direct download (7z) sha256 ...")
+LEAK_CTX = re.compile(
+    r"\bleak(?:ed|s)?\b|data\s*leak|\bdump\b|database|\bvictim|stolen|exfiltrat|"
+    r"published|full\s*data|direct\s*download|\bdocuments?\b|\bfiles?\s+of\b", re.I)
 # hex that is a file-host download/share ID or torrent hash, not a malware sample hash
 # (warez forums are dense with these: rapidgator/rg.to/mega/... URL path IDs, magnet btih)
 URL_HEXID = re.compile(
@@ -213,6 +229,10 @@ def init_db():
             c.execute("ALTER TABLE crawled ADD COLUMN %s INTEGER DEFAULT 0" % _col)
         except Exception:
             pass
+    try:                                               # 'malware' or 'leakdata' (stolen-data archive hash)
+        c.execute("ALTER TABLE hashes ADD COLUMN kind TEXT DEFAULT 'malware'")
+    except Exception:
+        pass
     c.commit()
     return c
 
@@ -328,8 +348,27 @@ def translate_en(text):
     except Exception:
         return ""
 
+def classify_hash(h, htype, before, ctx, force_ctx=False):
+    """Decide what a hex string found on a page is. Returns None (not a sample hash) or
+    (is_mal, kind) with kind 'malware' or 'leakdata'. `before` is the raw text right before
+    the hex (field-name check), `ctx` the ~90-char window either side. Also used by
+    --reclassify to clean rows stored before these rules existed."""
+    if KV_SECRET.search(before[-48:]) or JWT_TAIL.search(before[-24:]):
+        return None                                      # value of a signature/token field
+    if TOKEN_CTX.search(ctx) or URL_HEXID.search(ctx):   # web token / file-host ID
+        return None
+    is_mal = bool(force_ctx or _mal_ctx(ctx))
+    cue = bool(HASH_CUE.search(ctx))
+    if not (is_mal or cue):                              # every hash type needs a cue or context
+        return None
+    if htype in ("md5", "sha1") and not is_mal:          # short hashes need malware context
+        return None
+    leak = bool(LEAK_CTX.search(ctx)) and not TOOL_CTX.search(ctx)
+    return is_mal and not leak, ("leakdata" if leak else "malware")
+
+
 def mine(text, force_ctx=False):
-    """Return (hashes, exes, families). hashes:[(hash,htype,ctx,fam,context)].
+    """Return (hashes, exes, families). hashes:[(hash,htype,is_mal,fam,context,kind)].
     force_ctx=True when the page as a whole is confirmed malware-related (e.g. via
     translation): per-finding context gates are then satisfied page-wide."""
     clean = WS_RE.sub(" ", TAG_RE.sub(" ", text))
@@ -341,18 +380,19 @@ def mine(text, force_ctx=False):
             if h in seen:
                 continue
             seen.add(h)
-            i = low.find(h)
+            i = m.start()
             ctx = clean[max(0, i - 90): i + len(h) + 90].strip()
-            if TOKEN_CTX.search(ctx) or URL_HEXID.search(ctx):   # web token / file-host ID
+            verdict = classify_hash(h, htype, clean[max(0, i - 60): i], ctx, force_ctx)
+            if verdict is None:
                 continue
-            is_mal = force_ctx or _mal_ctx(ctx)
-            if htype in ("md5", "sha1") and not is_mal:   # short hashes need malware context
-                continue
-            fam = FAMILY_RE.search(ctx)
-            fam_c = _FAM_CANON.get(fam.group(1).lower()) if fam else None
-            if fam_c and fam_c.lower() in AMBIG_FAM and not is_mal:
-                fam_c = None
-            hashes.append((h, htype, is_mal, fam_c, ctx[:200]))
+            is_mal, kind = verdict
+            fam_c = None
+            if kind == "malware":
+                fam = FAMILY_RE.search(ctx)
+                fam_c = _FAM_CANON.get(fam.group(1).lower()) if fam else None
+                if fam_c and fam_c.lower() in AMBIG_FAM and not is_mal:
+                    fam_c = None
+            hashes.append((h, htype, is_mal, fam_c, ctx[:200], kind))
     exes = {}
     def _fam_near(window):
         fm = FAMILY_RE.search(window)
@@ -548,13 +588,15 @@ def store_page(c, url, name, cat, text, now):
     hashes, exes, fams = mine(text, page_mal)
     store_candidates(c, text, clean0, name, now)        # fetchable sample links -> triage queue
     page_fam = next(iter(fams)) if len(fams) == 1 else None
-    for h, htype, ctx, fam, context in hashes:
-        fam = fam or page_fam
+    for h, htype, ctx, fam, context, kind in hashes:
+        if kind == "malware" and ctx:                  # a page's lone family only labels a hash
+            fam = fam or page_fam                      # that is itself in malware context
         c.execute(
-            "INSERT INTO hashes VALUES(?,?,?,?,?,?,?,?,?,?) "
+            "INSERT INTO hashes(hash,htype,source_url,source_name,category,malware_ctx,family,context,"
+            "first_seen,last_seen,kind) VALUES(?,?,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(hash,source_url) DO UPDATE SET last_seen=?, "
-            "malware_ctx=max(malware_ctx,?), family=COALESCE(family,?)",
-            (h, htype, url, name, cat, int(ctx), fam, context, now, now, now, int(ctx), fam))
+            "malware_ctx=max(malware_ctx,?), family=COALESCE(family,?), kind=?",
+            (h, htype, url, name, cat, int(ctx), fam, context, now, now, kind, now, int(ctx), fam, kind))
     for ref, efam in exes.items():
         efam = efam or page_fam
         c.execute("INSERT INTO exes(ref,source_url,source_name,category,first_seen,last_seen,family) "
@@ -674,7 +716,7 @@ def export(c, n_sources, pages):
             "SELECT hash,htype,max(malware_ctx),max(family),"
             "group_concat(DISTINCT source_name),group_concat(DISTINCT source_url),"
             "max(context),min(first_seen),max(last_seen),count(DISTINCT source_url) "
-            "FROM hashes GROUP BY hash"):
+            "FROM hashes WHERE COALESCE(kind,'malware')='malware' GROUP BY hash"):
         new = bool(r[7] and r[7] >= newcut)
         # confidence: malware context + known family + how many sites + recency
         sc = (3 if r[2] else 0) + (3 if r[3] else 0) + min(r[9], 4) + (2 if new else 0)
@@ -709,9 +751,16 @@ def export(c, n_sources, pages):
         trows.append({"token": r[0], "links": [u for u in (r[1] or "").split(",") if u][:3],
                       "sources": [s for s in (r[2] or "").split(",") if s][:3],
                       "new": bool(r[3] and r[3] >= newcut), "last": iso(r[4]), "site_count": r[5]})
+    lrows = [{"hash": r[0], "sources": [s for s in (r[1] or "").split(",") if s][:3],
+              "source_links": [u for u in (r[2] or "").split(",") if u][:3],
+              "context": r[3] or "", "last": iso(r[4])}
+             for r in c.execute("SELECT hash,group_concat(DISTINCT source_name),group_concat(DISTINCT source_url),"
+                                "max(context),max(last_seen) FROM hashes WHERE kind='leakdata' GROUP BY hash "
+                                "ORDER BY max(last_seen) DESC LIMIT 200")]
     newfams = {x[0] for x in c.execute("SELECT name FROM families WHERE first_seen>=?", (newcut,))}
     famcount = {}
-    for x in c.execute("SELECT family,count(DISTINCT hash) FROM hashes WHERE family IS NOT NULL AND family!='' GROUP BY family"):
+    for x in c.execute("SELECT family,count(DISTINCT hash) FROM hashes WHERE family IS NOT NULL AND family!='' "
+                       "AND COALESCE(kind,'malware')='malware' GROUP BY family"):
         famcount[x[0]] = famcount.get(x[0], 0) + x[1]
     for x in c.execute("SELECT family,count(DISTINCT ref) FROM exes WHERE family IS NOT NULL AND family!='' GROUP BY family"):
         famcount[x[0]] = famcount.get(x[0], 0) + x[1]
@@ -722,9 +771,54 @@ def export(c, n_sources, pages):
            "hash_count": len(hrows), "new_hashes": sum(1 for h in hrows if h["new"]),
            "context_hits": sum(1 for h in hrows if h["malware_context"]),
            "exe_count": len(erows), "new_exes": sum(1 for e in erows if e["new"]),
-           "families": fams, "sample_families": sample_fams, "hashes": hrows, "executables": erows, "token_count": len(trows), "tokens": trows}
+           "families": fams, "sample_families": sample_fams, "hashes": hrows, "executables": erows,
+           "token_count": len(trows), "tokens": trows, "leak_hashes": lrows}
     json.dump(out, open(OUT, "w"), indent=2)
 
+
+def reclassify():
+    """One-off cleanup: re-run classify_hash over every stored hash row using its saved
+    context, delete the rows that are not sample hashes (signatures, tokens, IDs), re-label
+    stolen-data archive hashes as 'leakdata', clear families that only ever came from a
+    rejected row, and print what changed. Back up the DB before running."""
+    c = init_db()
+    rows = c.execute("SELECT hash,htype,source_url,context,family FROM hashes").fetchall()
+    drop, leak, keep, fam_hit = [], [], 0, set()
+    for h, htype, su, ctx, fam in rows:
+        ctx = ctx or ""
+        i = ctx.lower().find(h)
+        before = ctx[:i] if i >= 0 else ""
+        v = classify_hash(h, htype, before, ctx)
+        if v is None:
+            drop.append((h, su))
+            if fam:
+                fam_hit.add(fam)
+        elif v[1] == "leakdata":
+            leak.append((h, su))
+        else:
+            keep += 1
+    c.executemany("DELETE FROM hashes WHERE hash=? AND source_url=?", drop)
+    c.executemany("UPDATE hashes SET kind='leakdata', family=NULL WHERE hash=? AND source_url=?", leak)
+    # a family that labelled rejected rows and has no remaining evidence (e.g. 'GLOBAL', which
+    # tagged 5,018 S3 signatures). Families with surviving hashes or executables stay.
+    alive = {r[0] for r in c.execute("SELECT DISTINCT family FROM hashes WHERE family IS NOT NULL "
+                                     "UNION SELECT DISTINCT family FROM exes WHERE family IS NOT NULL")}
+    fam_gone = sorted(f for f in fam_hit if f not in alive)
+    # actor names that are ordinary words and only ever labelled noise ('GLOBAL' tagged S3
+    # signatures and leak-site file names): no longer matched by the crawler, purge leftovers
+    for word in ("GLOBAL",):
+        c.execute("UPDATE exes SET family=NULL WHERE family=?", (word,))
+        c.execute("UPDATE hashes SET family=NULL WHERE family=?", (word,))
+        fam_gone.append(word)
+    c.executemany("DELETE FROM families WHERE name=?", [(f,) for f in fam_gone])
+    c.commit()
+    print("reclassify: %d rows -> kept %d malware, %d leakdata, deleted %d; families removed: %s"
+          % (len(rows), keep, len(leak), len(drop), ", ".join(fam_gone) or "none"))
+
+
+if __name__ == "__main__" and "--reclassify" in sys.argv:
+    reclassify()
+    raise SystemExit(0)
 
 if __name__ == "__main__":
     main()

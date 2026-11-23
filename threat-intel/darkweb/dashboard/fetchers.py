@@ -20,8 +20,18 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 # passwords malware channels use for "pass-protected" drops (hint from the post is tried first)
 COMMON_PW = ["infected", "malware", "virus", "123", "1234", "12345", "password", "pass",
              "unpack", "changeme", "bagja", "malwar3", "clean", "2024", "2025", "2026"]
-MAX_UNPACK_MB = 500           # zip-bomb guard: refuse archives that expand past this
+MAX_UNPACK_MB    = 500        # zip-bomb guard: refuse archives that expand past this
+MAX_UNPACK_FILES = 300        # zip-bomb guard: refuse archives with more members than this
+UNPACK_TIMEOUT   = 180        # per-password extraction wall clock
 MAX_FETCH_MB  = 200           # host-fetch cap (triage re-checks its own smaller cap on disk)
+# 7-Zip with the RAR codec. Debian's 7zip is built without RAR; triage uses a user-space copy
+# (~/.local/lib/7zip = /usr/lib/7zip + Codecs/Rar.so from the 7zip-rar .deb, no root needed).
+SEVENZIP = next((p for p in (os.path.expanduser("~/.local/lib/7zip/7z"), "/usr/bin/7z")
+                 if os.path.exists(p)), "7z")
+# Hosts that block automated clients on purpose (gofile signs every API call with a rotating
+# secret and bans IPs that send a bad signature). We do not work around that: these links go
+# to a manual-download list on the dashboard instead of being retried.
+MANUAL_HOSTS = re.compile(r"gofile\.io", re.I)
 FETCH_TIMEOUT = 90
 SAMPLE_EXT = re.compile(r"\.(exe|dll|scr|sys|7z|zip|rar|gz|tar|bin|img|iso|js|jse|vbs|ps1|"
                         r"bat|cmd|hta|jar|apk|dex|elf|msi|cab|lnk|com|ace|arj)(\?|#|$)", re.I)
@@ -275,6 +285,12 @@ def _mega(url):
 
 def _resolve_jobs(url):
     u = url.strip()
+    if "..." in u or "…" in u:                      # truncated display text, not a real link
+        return []
+    if MANUAL_HOSTS.search(u):
+        return "MANUAL"
+    if re.search(r"pixeldrain\.com/api/file/[a-z0-9]+/(?:thumbnail|info)", u, re.I):
+        return []                                        # preview image / metadata, not the file
     if re.search(r"pixeldrain\.com/(?:u|file)/([a-z0-9]+)", u, re.I):
         fid = re.search(r"pixeldrain\.com/(?:u|file)/([a-z0-9]+)", u, re.I).group(1)
         return _direct("https://pixeldrain.com/api/file/%s" % fid)
@@ -299,10 +315,13 @@ def download_samples(url, workdir, passwords=None):
       paths            -> local temp files downloaded (empty on failure)
       'unresolved'     -> host we don't handle (give up)
       'no-link'        -> known host, dead/empty link (give up)
-      'resolve-failed' -> known host, resolution failed transiently (retry)"""
+      'resolve-failed' -> known host, resolution failed transiently (retry)
+      'manual-only'    -> host that blocks automation; listed for a human to fetch"""
     jobs = _resolve_jobs(url)
     if jobs == "UNKNOWN":
         return [], "unresolved"
+    if jobs == "MANUAL":
+        return [], "manual-only"
     if jobs is None:
         return [], "resolve-failed"
     if jobs == []:
@@ -326,31 +345,70 @@ def resolve(url):
 
 
 # ----------------------------------------------------------------------------- archive unpack
-def _archive_mb(path):
+def _listing(path, pw):
+    """(total_MB, n_files) from the archive's own index, or None when it cannot be listed
+    (encrypted headers with the wrong password, corrupt file)."""
     try:
-        out = subprocess.run(["7z", "l", "-slt", path], stdin=subprocess.DEVNULL,
-                             capture_output=True, text=True, timeout=30).stdout
-        return sum(int(x) for x in re.findall(r"^Size = (\d+)", out, re.M)) / (1024 * 1024)
+        r = subprocess.run([SEVENZIP, "l", "-slt", "-p" + (pw or ""), path], stdin=subprocess.DEVNULL,
+                           capture_output=True, text=True, timeout=30)
     except Exception:
-        return 0.0
+        return None
+    if r.returncode != 0:
+        return None
+    body = r.stdout.split("----------", 1)[-1]           # skip the archive's own header block
+    sizes = [int(x) for x in re.findall(r"^Size = (\d+)", body, re.M)]
+    nfiles = len(re.findall(r"^Attributes = (?!D)", body, re.M)) or len(sizes)
+    return sum(sizes) / (1024 * 1024), nfiles
+
+
+def _dir_stats(d):
+    n = tot = 0
+    for dp, _, fs in os.walk(d):
+        for f in fs:
+            n += 1
+            try: tot += os.path.getsize(os.path.join(dp, f))
+            except OSError: pass
+    return tot / (1024 * 1024), n
+
+
+def _clear(d):
+    for dp, _, fs in os.walk(d):
+        for f in fs:
+            try: os.remove(os.path.join(dp, f))
+            except OSError: pass
 
 
 def unpack(path, outdir, passwords=None):
-    """Extract with 7z (handles encrypted zip/7z/rar). Returns extracted file paths, or []."""
-    if _archive_mb(path) > MAX_UNPACK_MB:                # zip-bomb guard
-        return []
+    """Extract with 7z (zip/7z/rar incl. RAR5, encrypted). Tries no password, the post's
+    hint(s), then the common malware passwords. Zip-bomb guards: the archive index is checked
+    against MAX_UNPACK_MB / MAX_UNPACK_FILES before extracting, and a watchdog kills 7z if the
+    output grows past either limit anyway (indexes can lie, encrypted headers hide them).
+    Returns extracted file paths, or []."""
+    import time as _t
     os.makedirs(outdir, exist_ok=True)
-    tries = [None] + list(dict.fromkeys((passwords or []) + COMMON_PW))
+    tries = [None] + list(dict.fromkeys(p for p in (passwords or []) + COMMON_PW if p))
     for pw in tries:
-        cmd = ["7z", "x", "-y", "-o" + outdir, ("-p" + pw) if pw is not None else "-p", path]
+        lst = _listing(path, pw)
+        if lst and (lst[0] > MAX_UNPACK_MB or lst[1] > MAX_UNPACK_FILES):
+            return []                                    # the index itself says bomb: give up
+        cmd = [SEVENZIP, "x", "-y", "-bd", "-o" + outdir, "-p" + (pw or ""), path]
         try:
-            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, timeout=180)
+            p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
         except Exception:
             continue
+        start, blown = _t.time(), False
+        while p.poll() is None:
+            _t.sleep(0.5)
+            mb, n = _dir_stats(outdir)
+            if mb > MAX_UNPACK_MB or n > MAX_UNPACK_FILES or _t.time() - start > UNPACK_TIMEOUT:
+                p.kill(); p.wait(); blown = True
+                break
+        if blown:
+            _clear(outdir)
+            return []
         files = [os.path.join(dp, f) for dp, _, fs in os.walk(outdir) for f in fs]
-        if r.returncode == 0 and files:
+        if p.returncode == 0 and files:
             return files
-        for f in files:                                  # clear partial before next password
-            try: os.remove(f)
-            except OSError: pass
+        _clear(outdir)                                   # partial output before the next password
     return []

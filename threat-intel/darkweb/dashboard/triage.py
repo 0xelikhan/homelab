@@ -2,18 +2,21 @@
 """
 triage.py  -  download + statically triage crawler-flagged executables for the RE team.
 
-Pipeline (cheapest-first so the slow tool runs on a fraction):
-  fetch(byte-capped) -> sha256 dedup -> `file` magic -> pefile anomaly -> DIE packer/
-  toolchain -> YARA family (attribution) -> capa (LAZY: only for a PE that none of the
-  fast checks already decided).  KEEP if any strong malicious indicator fires; otherwise
-  DELETE on the spot.  No scoring is surfaced; the decision is binary.
+Pipeline (cheapest-first):
+  fetch(byte-capped) -> sha256 dedup -> `file` magic -> archive? unpack (7z incl. RAR5,
+  post password + source name + common passwords, zip-bomb watchdog) and recurse ->
+  pefile anomaly -> DIE packer/toolchain -> YARA family -> script heuristics.
+  KEEP if any of those fires.  A PE/ELF none of them flags is NOT deleted: it waits in
+  ~/triage-pending for capa, because capa is the only check that sees behaviour.
 
-Throughput: the keep/delete decision uses only sub-second tools (file/pefile/DIE/YARA);
-capa (the bottleneck, bounded by a timeout) runs only on the ambiguous-benign PE middle.
-SHA-256 dedup collapses re-posted floods.  Per-run + disk-budget caps bound CPU and disk.
+capa (4-6 min per sample on this VM) runs OUT of the decision path, in its own stage
+(`triage.py --capa`, cti-capa.timer): kept PE/ELF get capabilities + ATT&CK IDs for the
+RE handoff; pending ones get their verdict (malicious -> quarantine, several capabilities
+-> review, else delete).  The crawl run never waits on it.
 
 Self-cleaning: false positives are deleted immediately; kept samples live in ~/quarantine
-named by sha256; prune() enforces retention + a total-size budget (oldest-first).
+named by sha256; prune() enforces retention + a total-size budget (oldest-first).  The
+triage row outlives the files (pruned=ts), so the dashboard keeps the full history.
 
 SAFETY: samples are written and read as data only; nothing here ever executes them.
 """
@@ -47,7 +50,10 @@ REVIEW_RETENTION_HOURS = 72   # borderline review items: longer shelf for a spar
 REVIEW_MAX       = 50         # cap the review area so it cannot grow without bound
 REVIEW_MIN_CAPS  = 4          # an unpacked dark-web PE with >= this many capa caps (no malicious NS) -> review
 FETCH_TIMEOUT    = 60
-CAPA_TIMEOUT     = 120
+CAPA_TIMEOUT     = 600        # measured 250-330 s for a 500-650 KB stealer on this 2-vCPU VM
+CAPA_BUDGET_S    = 1500       # wall-clock budget for one --capa stage run (timer every 30 min)
+PENDING_RETENTION_HOURS = 72  # an unflagged PE that capa never got to is dropped after this
+PDIR   = os.path.expanduser("~/triage-pending")      # unflagged PE/ELF waiting for a capa verdict
 CAPA_BIN   = os.path.expanduser("~/.local/bin/capa")
 CAPA_RULES = os.path.expanduser("~/capa-rules")
 CAPA_SIGS  = os.path.expanduser("~/capa-sigs")
@@ -103,8 +109,40 @@ def init_db(c):
         reasons TEXT, caps TEXT, imphash TEXT, max_entropy REAL, packed INTEGER, ts REAL);
     CREATE TABLE IF NOT EXISTS triage_seen(url TEXT PRIMARY KEY, ts REAL);
     CREATE TABLE IF NOT EXISTS triage_try(url TEXT PRIMARY KEY, n INTEGER, ts REAL);
+    -- latest fetch outcome per candidate link: feeds the funnel + per-source yield panels
+    CREATE TABLE IF NOT EXISTS fetch_log(url TEXT PRIMARY KEY, source_name TEXT,
+        outcome TEXT, n_files INTEGER, ts REAL);
+    -- links on hosts that block automation (gofile): listed for a human to download
+    CREATE TABLE IF NOT EXISTS manual(url TEXT PRIMARY KEY, source_name TEXT,
+        password TEXT, ts REAL);
     """)
+    # kept: 0 dropped, 1 quarantine (RE), 2 review, 3 waiting for capa
+    for col, typ in (("origin", "TEXT"), ("pruned", "REAL"), ("capa_state", "TEXT"),
+                     ("attack", "TEXT"), ("mb_status", "TEXT")):
+        try:
+            c.execute("ALTER TABLE triage ADD COLUMN %s %s" % (col, typ))
+        except sqlite3.OperationalError:
+            pass
     c.commit()
+
+
+def origin_of(src, url):
+    if src in KNOWN_FEEDS:
+        return "known-feed"
+    if (url or "").startswith("telegram://"):
+        return "telegram"
+    return "darkweb"
+
+
+def source_passwords(src):
+    """Archive passwords derived from the posting source: drops are often locked with the
+    forum / channel name (e.g. 'CRIMEMARKET', 'crimemarket', 'crimemarket.to')."""
+    s = (src or "").strip()
+    if not s or s.startswith("("):
+        return []
+    base = re.sub(r"\s*\(.*?\)\s*", "", s).strip()
+    out = [base, base.lower(), base.lower().replace(" ", ""), base.lower().split(".")[0]]
+    return [p for p in dict.fromkeys(out) if 2 < len(p) <= 40]
 
 
 def quarantine_mb():
@@ -201,32 +239,39 @@ def yara_families(path):
     return fams[:6]
 
 
-def capa_malicious(path):
-    """Lazy, bounded. (malicious_bool, capability_names[], err).
+def capa_analyze(path):
+    """Bounded capa run. Returns (malicious_bool, capability_names[], attack_ids[], err).
     err distinguishes a real capa failure from a clean run: "" on success, else
     "no-capa"/"timeout"/"parse"/"run", so an empty cap list from a crash is never
-    silently read as benign."""
+    silently read as benign. attack_ids are ATT&CK technique IDs (T1055, T1027.002, ...)."""
     if not os.path.exists(CAPA_BIN):
-        return False, [], "no-capa"
+        return False, [], [], "no-capa"
     cmd = [CAPA_BIN, "-r", CAPA_RULES, "-s", CAPA_SIGS, "-j", path]
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=CAPA_TIMEOUT)
+        p = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                           timeout=CAPA_TIMEOUT)
     except subprocess.TimeoutExpired:
-        return False, [], "timeout"
+        return False, [], [], "timeout"
     except Exception:
-        return False, [], "run"
+        return False, [], [], "run"
     try:
         d = json.loads(p.stdout)
     except Exception:
-        return False, [], "parse"        # capa ran but produced no parseable JSON
-    caps, mal = [], False
+        return False, [], [], "parse"    # capa ran but produced no parseable JSON
+    caps, attack, mal = [], [], False
     for name, rule in (d.get("rules") or {}).items():
         meta = rule.get("meta", {}) if isinstance(rule, dict) else {}
+        if (meta.get("lib") or (meta.get("namespace") or "").startswith("internal")):
+            continue                     # helper rules, not reportable capabilities
         caps.append(meta.get("name", name))
+        for a in meta.get("attack") or []:
+            tid = a.get("id") if isinstance(a, dict) else None
+            if tid and tid not in attack:
+                attack.append(tid)
         ns = (meta.get("namespace") or "").lower()
         if any(k in ns for k in CAPA_MAL_NS):
             mal = True
-    return mal, caps[:30], ""
+    return mal, caps[:40], sorted(attack), ""
 
 
 def script_obfuscation(path):
@@ -283,8 +328,9 @@ def script_obfuscation(path):
 
 
 def decide(path, cat, script=None):
-    """Return (keep_bool, known_bool, family[], reasons[], caps[], imphash, max_entropy, packed).
-    `script` is scriptscan's (malicious, hits) when the caller already scanned a script."""
+    """Fast checks only (sub-second). Return (keep_bool, known_bool, family[], reasons[],
+    caps[], imphash, max_entropy, packed). caps is always [] here: capa runs later in its
+    own stage. `script` is scriptscan's (malicious, hits) when the caller already scanned."""
     reasons, family, caps = [], [], []
     imp, ent, packed = "", 0.0, False
     family = yara_families(path)                       # fast: attribution
@@ -311,14 +357,6 @@ def decide(path, cat, script=None):
         if obf:
             reasons += oreasons
     keep = bool(known or anom or pk or exo or obf or smal)
-    if cat in ("pe", "elf"):                           # capa on EVERY analyzable binary (not lazy)
-        mal, caps, cerr = capa_malicious(path)         # -> caps always recorded, for real fidelity
-        if mal:
-            keep = True
-            if "capa:malicious" not in reasons:
-                reasons.append("capa:malicious")
-        elif cerr:                                     # capa could not judge: record WHY (never read []=benign)
-            reasons.append("capa:err:" + cerr)
     return keep, known, family, reasons, caps, imp, ent, packed
 
 
@@ -351,12 +389,9 @@ def prune(c):
             items.append((os.path.getmtime(p), sz, p))
         except OSError:
             pass
-    def drop(p):                                          # remove files AND the board (DB) row
+    def drop(p):                                          # remove files; the row stays as history
         _rm(p)
-        try:
-            c.execute("DELETE FROM triage WHERE sha256=?", (os.path.basename(p.rstrip("/")),))
-        except Exception:
-            pass
+        _mark_pruned(c, p)
     for mt, _s, p in items:
         hrs = KNOWN_RETENTION_HOURS if os.path.basename(p.rstrip("/")) in known else RETENTION_HOURS
         if mt < now - hrs * 3600:
@@ -384,17 +419,33 @@ def prune(c):
                 pass
         def rdrop(p):
             _rm(p)
-            try:
-                c.execute("DELETE FROM triage WHERE sha256=?", (os.path.basename(p.rstrip("/")),))
-            except Exception:
-                pass
+            _mark_pruned(c, p)
         for mt, rp in rev:
             if mt < now - REVIEW_RETENTION_HOURS * 3600:
                 rdrop(rp)
         rev = sorted((x for x in rev if os.path.exists(x[1])), key=lambda x: x[0], reverse=True)
         for _mt, rp in rev[REVIEW_MAX:]:
             rdrop(rp)
+    # capa waiting room: an unflagged PE capa never reached in time is dropped (row -> benign)
+    if os.path.isdir(PDIR):
+        for name in os.listdir(PDIR):
+            pp = os.path.join(PDIR, name)
+            try:
+                if os.path.getmtime(pp) < now - PENDING_RETENTION_HOURS * 3600:
+                    _rm(pp)
+                    c.execute("UPDATE triage SET kept=0, capa_state='expired', pruned=? "
+                              "WHERE sha256=? AND kept=3", (now, name))
+            except OSError:
+                pass
     c.commit()
+
+
+def _mark_pruned(c, p):
+    try:
+        c.execute("UPDATE triage SET pruned=? WHERE sha256=?",
+                  (time.time(), os.path.basename(p.rstrip("/"))))
+    except Exception:
+        pass
 
 
 def candidates(c):
@@ -416,11 +467,15 @@ def candidates(c):
     return out
 
 
-def store(c, sha, url, src, size, desc, cat, keep, known, fam, reasons, caps, imp, ent, packed):
-    c.execute("INSERT OR REPLACE INTO triage VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+def store(c, sha, url, src, size, desc, cat, keep, known, fam, reasons, caps, imp, ent, packed,
+          capa_state=None, mb_status=None, attack=None):
+    c.execute("INSERT OR REPLACE INTO triage(sha256,url,source_name,size,filetype,category,kept,"
+              "known,family,reasons,caps,imphash,max_entropy,packed,ts,origin,pruned,capa_state,"
+              "attack,mb_status) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,?,?,?)",
               (sha, url, src, size, desc[:120], cat, int(keep), int(known), json.dumps(fam),
                ";".join(reasons) if isinstance(reasons, list) else reasons,
-               json.dumps(caps), imp, ent, int(packed), time.time()))
+               json.dumps(caps), imp, ent, int(packed), time.time(), origin_of(src, url),
+               capa_state, json.dumps(attack or []), mb_status))
 
 
 # crypto constant signatures (distinctive, low false positive): name -> magic bytes
@@ -652,13 +707,16 @@ def _floss_strings(path, cat):
             "tight":   pull("tight_strings")}
 
 
-def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed):
+def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed,
+                   attack=None, capa_state=None, heavy=True):
     """Plain-text, category-based record of why this sample is on the dashboard.
     No prose, no em/en dashes: just the facts and the flags that fired. `sample` is the
-    on-disk sample path (inside `folder`), used for the static extractions below."""
+    on-disk sample path (inside `folder`), used for the static extractions below.
+    heavy=False skips FLOSS (the crawl run writes a quick file; the capa stage rewrites it)."""
     rs = reasons if isinstance(reasons, list) else [r for r in (reasons or "").split(";") if r]
     fams = fam if isinstance(fam, list) else []
     cps = caps if isinstance(caps, list) else []
+    atk = attack if isinstance(attack, list) else []
     L = []
     L.append("SAMPLE %s" % sha)
     L.append("")
@@ -707,6 +765,12 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
         L.append("  capa behaviors:")
         for cap in cps:
             L.append("    %s" % cap)
+    if atk:
+        L.append("  att&ck (capa):  %s" % ", ".join(atk))
+    if cat in ("pe", "elf") and capa_state in ("pending", "timeout", "err"):
+        L.append("  capa:           %s" % {"pending": "queued (runs in the capa stage, updates this file)",
+                                           "timeout": "timed out at %d s" % CAPA_TIMEOUT,
+                                           "err": "failed to analyse"}[capa_state])
     if not (pe or die or ya or mb or sc or obf or cps or packed or crypto):
         L.append("  flagged on: %s" % (", ".join(rs) if rs else "triage heuristics"))
     if is_pe:
@@ -733,7 +797,7 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
                 L.append("  %s:" % label)
                 for v in vals:
                     L.append("    %s" % v)
-    floss = _floss_strings(sample, cat) if os.path.exists(sample) else {}
+    floss = _floss_strings(sample, cat) if (heavy and os.path.exists(sample)) else {}
     if any(floss.values()):
         L.append("")
         L.append("[ DECODED STRINGS ]  (FLOSS deobfuscation; hidden from plain strings)")
@@ -751,7 +815,21 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
         fh.write(txt + "\n")
 
 
-def _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed):
+def _mb_status(sha, src):
+    """('known:<family>' | 'novel' | 'unchecked', family or ''). Hash lookup only, nothing
+    is uploaded. Known-feed samples came FROM MalwareBazaar, so no call is spent on them."""
+    if src in KNOWN_FEEDS:
+        return "known:feed", ""
+    info = mb_lookup(sha)                                # None=no key/unreachable, {}=novel
+    if info:
+        return "known:" + (info.get("family") or "unattributed"), info.get("family") or ""
+    if info == {}:
+        return "novel", ""
+    return "unchecked", ""
+
+
+def _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed,
+               capa_state=None, mb_status=None):
     """Park a verified sample in its own quarantine folder next to a findings.txt that
     explains, by category, why it is on the dashboard."""
     ext = os.path.splitext(path)[1][:5] or ext_for(cat, url)
@@ -759,37 +837,41 @@ def _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, cap
     os.makedirs(folder, exist_ok=True)
     dest = os.path.join(folder, sha + ext)
     shutil.move(path, dest)                              # move (handles cross-filesystem)
-    write_findings(folder, dest, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed)
+    write_findings(folder, dest, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent,
+                   packed, capa_state=capa_state, heavy=(capa_state != "pending"))
     if not known and cat == "pe":                        # novel: draft a starting YARA rule
         write_yara_rule(folder, dest, sha, src, imp)
-    store(c, sha, url, src, size, desc, cat, 1, known, fam, reasons, caps, imp, ent, packed)
+    store(c, sha, url, src, size, desc, cat, 1, known, fam, reasons, caps, imp, ent, packed,
+          capa_state=capa_state, mb_status=mb_status)
     print("KEEP %s known=%s %s" % (sha[:12], known, reasons))
 
 
 def _review_candidate(cat, src, known, packed, reasons, caps):
-    """A dark-web PE the keep-filter dropped, yet unpacked with several capa capabilities
-    (none in a malicious namespace): not junk, worth a human glance. Excludes the
-    known-malware baseline feeds and anything capa could not analyse."""
+    """A dark-web PE the fast checks did not flag and capa did not call malicious, yet
+    unpacked with several capabilities: not junk, worth a human glance. Excludes the
+    known-malware baseline feeds."""
     if cat != "pe" or known or packed:
         return False
     if src in KNOWN_FEEDS:
         return False
-    if any(r.startswith("capa:err") for r in reasons):
-        return False
     return len(caps) >= REVIEW_MIN_CAPS
 
 
-def _review_file(c, path, sha, url, src, size, desc, cat, fam, reasons, caps, imp, ent, packed):
-    """Park a borderline sample in the review area (kept=2): not an RE keeper, not deleted."""
-    os.makedirs(RDIR, exist_ok=True)
+def _park(c, path, base, kept, sha, url, src, size, desc, cat, fam, reasons, caps, imp, ent, packed,
+          capa_state=None, attack=None):
+    """Move a sample into <base>/<sha>/ and record it (kept=2 review, kept=3 waiting for capa)."""
+    os.makedirs(base, exist_ok=True)
     ext = os.path.splitext(path)[1][:5] or ext_for(cat, url)
-    folder = os.path.join(RDIR, sha)
+    folder = os.path.join(base, sha)
     os.makedirs(folder, exist_ok=True)
     dest = os.path.join(folder, sha + ext)
     shutil.move(path, dest)
-    write_findings(folder, dest, sha, url, src, size, desc, cat, 0, fam, reasons, caps, imp, ent, packed)
-    store(c, sha, url, src, size, desc, cat, 2, 0, fam, reasons, caps, imp, ent, packed)
-    print("REVIEW %s %s caps=%d" % (sha[:12], reasons, len(caps)))
+    if kept == 2:
+        write_findings(folder, dest, sha, url, src, size, desc, cat, 0, fam, reasons, caps, imp, ent,
+                       packed, attack=attack, capa_state=capa_state)
+    store(c, sha, url, src, size, desc, cat, kept, 0, fam, reasons, caps, imp, ent, packed,
+          capa_state=capa_state, attack=attack)
+    return dest
 
 
 def triage_one(c, path, url, src, passwords, depth=0):
@@ -807,7 +889,8 @@ def triage_one(c, path, url, src, passwords, depth=0):
     is_installer = INSTALLER_DESC.search(desc) and cat == "pe"
     if depth < 2 and (ARCHIVE_DESC.search(desc) or is_installer):
         exdir = path + ".x"
-        inner = fetchers.unpack(path, exdir, passwords)
+        pws = list(dict.fromkeys((passwords or []) + source_passwords(src)))
+        inner = fetchers.unpack(path, exdir, pws)
         nfiles = sum(1 for f in inner if os.path.isfile(f))
         inner_kept = sum(triage_one(c, f, url, src, passwords, depth + 1)
                          for f in inner if os.path.isfile(f))
@@ -834,34 +917,144 @@ def triage_one(c, path, url, src, passwords, depth=0):
     if cat not in KEEP_EXE:
         fam = yara_families(path) if size <= YARA_MAX_BYTES else []
         if fam:                                          # known-malicious document / script / data
-            _keep_file(c, path, sha, url, src, size, desc, cat, 1, fam, ["yara:" + fam[0]], [], "", 0.0, 0)
+            mbs, _ = _mb_status(sha, src)
+            _keep_file(c, path, sha, url, src, size, desc, cat, 1, fam, ["yara:" + fam[0]], [], "", 0.0, 0,
+                       mb_status=mbs)
             return 1 + inner_kept
         os.remove(path); store(c, sha, url, src, size, desc, cat, 0, 0, [], "not-exe", [], "", 0.0, 0)
         return inner_kept
 
-    # Executable: full verdict (YARA attribution + PE anomaly + DIE packer + capa behaviour).
+    # Executable: fast verdict (YARA attribution + PE anomaly + DIE packer + script heuristics).
     keep, known, fam, reasons, caps, imp, ent, packed = decide(path, cat, script)
     if not keep and src in KNOWN_FEEDS and cat in ("pe", "elf", "macho", "script"):
         keep = True; reasons = list(reasons) + ["feed:forced"]   # recall canary: known-feed sample (incl. script malware) must land
+    needs_capa = cat in ("pe", "elf")
     if not keep:
-        if _review_candidate(cat, src, known, packed, reasons, caps):
-            _review_file(c, path, sha, url, src, size, desc, cat, fam,
-                         list(reasons) + ["review:caps%d" % len(caps)], caps, imp, ent, packed)
-            return inner_kept                           # review item: not an RE keeper, not deleted
+        if needs_capa:                                  # only capa can judge it: wait, don't delete
+            _park(c, path, PDIR, 3, sha, url, src, size, desc, cat, fam, list(reasons),
+                  [], imp, ent, packed, capa_state="pending")
+            print("PENDING %s (capa) %s" % (sha[:12], reasons))
+            return inner_kept
         os.remove(path)                                 # false positive -> delete
         store(c, sha, url, src, size, desc, cat, 0, known, fam, reasons or ["benign"], caps, imp, ent, packed)
         return inner_kept
-    if not known:                                       # authoritative known/new via MalwareBazaar
-        info = mb_lookup(sha)                            # None=no key, {}=novel, {...}=known
-        if info:
-            known = 1
-            if info.get("family"):
-                fam = [info["family"]]
-            reasons = list(reasons) + ["mb:" + (info.get("family") or "known")]
-        elif info == {}:
-            reasons = list(reasons) + ["mb:novel"]      # confirmed not in MalwareBazaar
-    _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed)
+    mbs, mbfam = _mb_status(sha, src)                   # authoritative known/new via MalwareBazaar
+    if mbs.startswith("known:") and mbs != "known:feed":
+        if not known and mbfam:
+            fam = [mbfam]
+        known = 1
+        reasons = list(reasons) + ["mb:" + mbs.split(":", 1)[1]]
+    elif mbs == "novel":
+        reasons = list(reasons) + ["mb:novel"]          # confirmed not in MalwareBazaar
+    _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed,
+               capa_state=("pending" if needs_capa else None), mb_status=mbs)
     return 1 + inner_kept
+
+
+# --------------------------------------------------------------------------- capa stage
+def _sample_in(folder):
+    try:
+        for f in os.listdir(folder):
+            if f not in ("findings.txt", "rule.yar") and not f.startswith("."):
+                return os.path.join(folder, f)
+    except OSError:
+        pass
+    return ""
+
+
+def capa_stage(budget_s=CAPA_BUDGET_S):
+    """Run capa on the queue, out of the crawl's critical path. Order: kept dark-web samples
+    (RE handoff detail) first, then unflagged PE/ELF waiting for a verdict, then known-feed.
+    Stops starting new jobs once the wall-clock budget is spent; the rest wait for the next run."""
+    c = sqlite3.connect(DB, timeout=120); init_db(c)
+    rows = c.execute(
+        "SELECT sha256,url,source_name,size,filetype,category,kept,known,family,reasons,imphash,"
+        "max_entropy,packed,mb_status FROM triage WHERE capa_state='pending' AND kept IN (1,3) "
+        "ORDER BY (origin='known-feed'), (kept=3), ts DESC").fetchall()
+    start, done = time.time(), 0
+    for (sha, url, src, size, desc, cat, kept, known, fam, reasons, imp, ent, packed, mbs) in rows:
+        if time.time() - start > budget_s:
+            break
+        folder = os.path.join(QDIR if kept == 1 else PDIR, sha)
+        sample = _sample_in(folder)
+        if not sample:
+            c.execute("UPDATE triage SET capa_state='gone' WHERE sha256=?", (sha,)); c.commit()
+            continue
+        mal, caps, attack, err = capa_analyze(sample)
+        state = "done" if not err else ("timeout" if err == "timeout" else "err")
+        rs = [r for r in (reasons or "").split(";") if r]
+        fams = json.loads(fam or "[]")
+        if mal and "capa:malicious" not in rs:
+            rs.append("capa:malicious")
+        if err:
+            rs.append("capa:err:" + err)
+        done += 1
+        if kept == 1:                                   # enrichment of a kept sample
+            c.execute("UPDATE triage SET caps=?, attack=?, capa_state=?, reasons=? WHERE sha256=?",
+                      (json.dumps(caps), json.dumps(attack), state, ";".join(rs), sha))
+            write_findings(folder, sample, sha, url, src, size, desc, cat, known, fams, rs, caps, imp,
+                           ent, packed, attack=attack, capa_state=state)
+            print("CAPA %s kept: %d caps, %d att&ck, %s" % (sha[:12], len(caps), len(attack), state))
+        elif mal:                                        # pending -> malicious: promote to the RE board
+            mstat, mfam = _mb_status(sha, src)
+            known2 = 1 if (mstat.startswith("known:") and mstat != "known:feed") else 0
+            if mfam and not fams:
+                fams = [mfam]
+            rs.append("mb:" + (mstat.split(":", 1)[1] if known2 else mstat))
+            dest_folder = os.path.join(QDIR, sha)
+            shutil.rmtree(dest_folder, ignore_errors=True)
+            shutil.move(folder, dest_folder)
+            sample = os.path.join(dest_folder, os.path.basename(sample))
+            write_findings(dest_folder, sample, sha, url, src, size, desc, cat, known2, fams, rs, caps,
+                           imp, ent, packed, attack=attack, capa_state=state)
+            if not known2 and cat == "pe":
+                write_yara_rule(dest_folder, sample, sha, src, imp)
+            c.execute("UPDATE triage SET kept=1, known=?, family=?, caps=?, attack=?, capa_state=?, "
+                      "reasons=?, mb_status=?, ts=? WHERE sha256=?",
+                      (known2, json.dumps(fams), json.dumps(caps), json.dumps(attack), state,
+                       ";".join(rs), mstat, time.time(), sha))
+            print("KEEP %s via capa %s" % (sha[:12], rs))
+        elif err or _review_candidate(cat, src, known, packed, rs, caps):
+            # capa could not judge it, or it has real capabilities without a malicious one:
+            # a dark-web PE like that goes to a human, not the bin
+            if src in KNOWN_FEEDS:
+                _rm(folder)
+                c.execute("UPDATE triage SET kept=0, caps=?, capa_state=?, reasons=? WHERE sha256=?",
+                          (json.dumps(caps), state, ";".join(rs), sha))
+            else:
+                dest_folder = os.path.join(RDIR, sha)
+                os.makedirs(RDIR, exist_ok=True)
+                shutil.rmtree(dest_folder, ignore_errors=True)
+                shutil.move(folder, dest_folder)
+                rs.append("review:%s" % ("capa-" + err if err else "caps%d" % len(caps)))
+                write_findings(dest_folder, os.path.join(dest_folder, os.path.basename(sample)), sha, url,
+                               src, size, desc, cat, 0, fams, rs, caps, imp, ent, packed, attack=attack,
+                               capa_state=state)
+                c.execute("UPDATE triage SET kept=2, caps=?, attack=?, capa_state=?, reasons=? WHERE sha256=?",
+                          (json.dumps(caps), json.dumps(attack), state, ";".join(rs), sha))
+                print("REVIEW %s via capa %s" % (sha[:12], rs))
+        else:                                            # capa ran clean and found nothing worth keeping
+            _rm(folder)
+            c.execute("UPDATE triage SET kept=0, caps=?, attack=?, capa_state=?, reasons=? WHERE sha256=?",
+                      (json.dumps(caps), json.dumps(attack), state, ";".join(rs + ["benign"]), sha))
+            print("DROP %s after capa (%d caps)" % (sha[:12], len(caps)))
+        c.commit()
+    left = c.execute("SELECT count(*) FROM triage WHERE capa_state='pending'").fetchone()[0]
+    print("capa: analysed=%d left=%d in %.0fs" % (done, left, time.time() - start))
+
+
+def export_keeps(days=7):
+    """JSON for the pve bridge (Telegram alert + VirusTotal lookup): kept and review samples
+    from the last `days`. Only fields the bridge needs; nothing from the samples' own bytes."""
+    c = sqlite3.connect("file:%s?mode=ro" % DB, uri=True)
+    cut = time.time() - days * 86400
+    out = []
+    for r in c.execute("SELECT sha256,origin,source_name,category,kept,family,reasons,mb_status,ts,"
+                       "capa_state,attack FROM triage WHERE kept IN (1,2) AND ts>=? ORDER BY ts", (cut,)):
+        out.append({"sha256": r[0], "origin": r[1] or "", "source": r[2] or "", "category": r[3] or "",
+                    "kept": r[4], "family": json.loads(r[5] or "[]"), "reasons": r[6] or "",
+                    "mb": r[7] or "", "ts": r[8], "capa": r[9] or "", "attack": json.loads(r[10] or "[]")})
+    print(json.dumps(out))
 
 
 def intake_local(c):
@@ -1041,6 +1234,24 @@ MAX_TRIES = 4        # transient fetch failures to tolerate before giving up on 
 def _seen(c, url):
     c.execute("INSERT OR REPLACE INTO triage_seen VALUES(?,?)", (url, time.time()))
 
+def _log_fetch(c, url, src, outcome, n):
+    c.execute("INSERT OR REPLACE INTO fetch_log VALUES(?,?,?,?,?)", (url, src or "", outcome, n, time.time()))
+
+
+def _outcome(err):
+    """Bucket a fetch error for the funnel panel."""
+    e = (err or "").lower()
+    if err in ("unresolved",):
+        return "unsupported-host"
+    if err in ("no-link",) or any(k in e for k in ("not found", "404", "410", "gone")):
+        return "dead-link"
+    if err in ("too-big", "exceeded-cap"):
+        return "too-big"
+    if any(k in e for k in ("403", "401", "forbidden", "unauthorized")):
+        return "refused"
+    return "transient"
+
+
 def _definitive(err):
     """A fetch outcome that will not change on retry -> stop trying this URL."""
     if err in ("too-big", "exceeded-cap"):
@@ -1051,7 +1262,7 @@ def _definitive(err):
 
 def main():
     os.makedirs(QDIR, exist_ok=True)
-    c = sqlite3.connect(DB); init_db(c); prune(c)
+    c = sqlite3.connect(DB, timeout=120); init_db(c); prune(c)
     pulled = kept = 0
     kept += intake_local(c)             # Telegram-collected samples first (already downloaded)
     for url, src, pw in candidates(c):
@@ -1059,15 +1270,21 @@ def main():
             break
         paths, err = fetchers.download_samples(url, QDIR, pw)  # all files (a folder yields many)
         if paths:
+            # every file of one link is triaged (a folder is capped at MAX_FOLDER_FILES by the
+            # fetcher); the per-run cap only stops the NEXT link from starting, so files are
+            # never thrown away after the link has been marked seen.
             for p in paths:
-                if pulled >= MAX_PULL_PER_RUN:
-                    try: os.remove(p)                    # over budget this run -> drop leftovers
-                    except OSError: pass
-                    continue
                 pulled += 1
                 kept += triage_one(c, p, url, src, pw)
+            _log_fetch(c, url, src, "fetched", len(paths))
             _seen(c, url); c.commit(); continue
         print("skip %s (%s)" % (url[:50], err))
+        if err == "manual-only":                         # host blocks automation: hand it to a human
+            c.execute("INSERT OR IGNORE INTO manual VALUES(?,?,?,?)",
+                      (url, src, "\x1f".join(pw or []), time.time()))
+            _log_fetch(c, url, src, "manual-only", 0)
+            _seen(c, url); c.commit(); continue
+        _log_fetch(c, url, src, _outcome(err), 0)
         if err == "unresolved" or err == "no-link" or _definitive(err):
             _seen(c, url)                               # host we can't fetch, or dead link -> done
         else:                                            # transient (flaky Tor) -> retry a few times
@@ -1088,4 +1305,12 @@ def ext_for(cat, url):
 
 
 if __name__ == "__main__":
-    main()
+    if "--capa" in sys.argv:
+        b = CAPA_BUDGET_S
+        if "--budget" in sys.argv:
+            b = int(sys.argv[sys.argv.index("--budget") + 1])
+        capa_stage(b)
+    elif "--export-keeps" in sys.argv:
+        export_keeps()
+    else:
+        main()
