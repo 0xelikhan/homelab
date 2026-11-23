@@ -96,8 +96,6 @@ def rl_group_map():
 import sqlite3, time as _time
 DBPATH = os.path.join(HERE, "malware-findings.db")
 WEEK = 7 * 86400
-QPORT = 8777                                  # local-only quarantine file server (serve-quarantine.sh)
-QBASE = "http://127.0.0.1:%d" % QPORT         # Tor Browser blocks file://, but reaches localhost
 RDIR = os.path.expanduser("~/quarantine-review")
 DEAD_SKIP, DEAD_EMPTY = 4, 12                 # mirrors crawl-sources.py: retired crawl sources
 
@@ -116,15 +114,6 @@ def _q(c, sql, args=()):
         return []
 
 
-def _vt():
-    """vt-status.json is written by the pve bridge (VirusTotal lookups happen on pve, so the
-    key never sits on this VM). {sha256: {"status": "...", "detail": "..."}}"""
-    try:
-        return json.load(open(os.path.join(HERE, "vt-status.json"), encoding="utf-8"))
-    except Exception:
-        return {}
-
-
 def _ago(ts):
     if not ts:
         return ""
@@ -135,64 +124,17 @@ def _pill(text, cls):
     return f'<span class="pill {cls}">{html.escape(text)}</span>'
 
 
-def _mb_cell(mb):
-    mb = mb or "unchecked"
-    if mb == "novel":
-        return _pill("not in MB", "hot")
-    if mb == "known:feed":
-        return _pill("from MB", "mute")
-    if mb.startswith("known:"):
-        return _pill("MB: " + mb.split(":", 1)[1], "known")
-    return _pill("unchecked", "mute")
-
-
-def _vt_cell(v):
-    if not v:
-        return _pill("pending", "mute")
-    st = v.get("status", "")
-    if st == "not-found":
-        return _pill("not in VT", "hot")
-    if st == "found":
-        return _pill(v.get("detail", "in VT"), "known")
-    return _pill(st or "?", "mute")
-
-
 def samples_block():
     c = _db()
     if not c:
         return '<p class="x">No database yet.</p>'
-    vt = _vt()
     cut = _time.time() - WEEK
-    rows = _q(c, "SELECT sha256,origin,source_name,category,filetype,kept,known,family,reasons,"
-                 "mb_status,capa_state,caps,attack,ts,pruned FROM triage WHERE kept IN (1,2) AND ts>=? "
-                 "ORDER BY (origin='known-feed'), ts DESC", (cut,))
-    dw = [r for r in rows if r[1] in ("darkweb", "telegram")]
-    kn = [r for r in rows if r[1] == "known-feed"]
-    novel = sum(1 for r in rows if r[9] == "novel" or vt.get(r[0], {}).get("status") == "not-found")
-    pend = _q(c, "SELECT count(*) FROM triage WHERE capa_state='pending'")
-    pend = pend[0][0] if pend else 0
-    summ = (f'<div class="kpis">'
-            f'<div><b>{sum(1 for r in dw if r[5] == 1)}</b><span>dark web kept</span></div>'
-            f'<div><b>{sum(1 for r in dw if r[5] == 2)}</b><span>dark web review</span></div>'
-            f'<div><b>{len(kn)}</b><span>known feed</span></div>'
-            f'<div><b>{novel}</b><span>not in MB or VT</span></div>'
-            f'<div><b>{pend}</b><span>in the capa queue</span></div></div>')
+    rows = _q(c, "SELECT sha256,origin,source_name,category,kept,family,ts,pruned FROM triage "
+                 "WHERE kept IN (1,2) AND ts>=? ORDER BY (origin='known-feed'), ts DESC", (cut,))
 
     def row(r):
-        sha, origin, src, cat, ftype, kept, known, fam, reasons, mb, cst, caps, atk, ts, pruned = r
+        sha, origin, src, cat, kept, fam, ts, pruned = r
         fams = ", ".join(json.loads(fam or "[]")[:2]) or "-"
-        why = [x for x in (reasons or "").split(";") if x and not x.startswith(("mb:", "capa:err"))]
-        atk = json.loads(atk or "[]")
-        ncaps = len(json.loads(caps or "[]"))
-        if cat not in ("pe", "elf"):
-            capa = '<span class="x">n/a</span>'
-        elif cst == "pending":
-            capa = _pill("queued", "mute")
-        elif cst in ("timeout", "err"):
-            capa = _pill(cst, "warn")
-        else:
-            capa = (f'{ncaps} caps' + (f'<br><span class="x">{html.escape(" ".join(atk[:6]))}'
-                                       f'{" +%d" % (len(atk) - 6) if len(atk) > 6 else ""}</span>' if atk else ""))
         org = {"darkweb": _pill("DARK WEB", "dw"), "telegram": _pill("TELEGRAM", "dw"),
                "known-feed": _pill("KNOWN FEED", "mute")}.get(origin, _pill(origin or "?", "mute"))
         if kept == 2:
@@ -200,20 +142,16 @@ def samples_block():
         base = QDIR if kept == 1 else RDIR
         if pruned or not os.path.isdir(os.path.join(base, sha)):
             loc = '<span class="x">pruned</span>'
-        elif kept == 1:
-            loc = f'<a class="qf" href="{QBASE}/{sha}/findings.txt">findings</a> <a class="qf" href="{QBASE}/{sha}/">files</a>'
         else:
-            loc = f'<span class="qf">{html.escape(os.path.join(base, sha))}</span>'
+            loc = f'<span class="qf">{html.escape(os.path.join(base, sha))}/</span>'
         return (f'<tr><td class="d">{_ago(ts)}</td><td>{org}</td><td>{html.escape((src or "-")[:28])}</td>'
                 f'<td class="x">{html.escape(cat or "")}</td><td>{html.escape(fams[:60])}</td>'
-                f'<td class="x">{html.escape(", ".join(why)[:90])}</td><td>{_mb_cell(mb)}</td>'
-                f'<td>{_vt_cell(vt.get(sha))}</td><td>{capa}</td><td>{loc}<br>'
-                f'<span class="mono">{sha[:16]}</span></td></tr>')
+                f'<td>{loc}</td></tr>')
 
     head = ('<tr><th>Seen</th><th>Origin</th><th>Source</th><th>Type</th><th>Family / signature</th>'
-            '<th>Why kept</th><th>MalwareBazaar</th><th>VirusTotal</th><th>capa</th><th>Sample</th></tr>')
-    body = "".join(row(r) for r in rows) or '<tr><td colspan="10" class="x">Nothing kept in the last 7 days.</td></tr>'
-    return summ + f'<div class="tw"><table class="st">{head}{body}</table></div>'
+            '<th>Sample</th></tr>')
+    body = "".join(row(r) for r in rows) or '<tr><td colspan="6" class="x">Nothing kept in the last 7 days.</td></tr>'
+    return f'<div class="tw"><table class="st">{head}{body}</table></div>'
 
 
 def funnel_block():
@@ -250,16 +188,8 @@ def funnel_block():
     for (lbl, w), (_, a) in zip(wk, al):
         trs.append(f'<tr><td>{html.escape(lbl)}</td><td class="n">{w}</td><td class="n">{a}</td>'
                    f'<td class="barc"><div class="bar" style="width:{max(1, int(100 * a / top))}%"></div></td></tr>')
-    fails = _q(c, "SELECT outcome, count(*) FROM fetch_log WHERE outcome!='fetched' GROUP BY 1 ORDER BY 2 DESC")
-    unx = one("SELECT count(*) FROM triage WHERE reasons='archive:unextractable' AND ts>=?", (cut,))
-    since = one("SELECT min(ts) FROM fetch_log")
-    fl = " &middot; ".join(f'{html.escape(o)} {n}' for o, n in fails) or "none yet"
-    note = (f'<p class="x">Fetch outcomes are logged since {_ago(since) or "now"}, so "Fetched" all-time starts there. '
-            f'Failures (latest outcome per link): {fl}. Archives that would not open this week: {unx}. '
-            f'Before 2026-11-23 pruning deleted kept samples from the database, so older keeps are missing '
-            f'from these counts.</p>')
     return (f'<table class="fn"><tr><th>Stage</th><th class="n">7 days</th><th class="n">All time</th><th></th></tr>'
-            f'{"".join(trs)}</table>{note}')
+            f'{"".join(trs)}</table>')
 
 
 def manual_block():
@@ -271,10 +201,7 @@ def manual_block():
         f'<li>{lnk(html.escape(u[:70]), u)} <span class="x">{html.escape(s or "")} &middot; {_ago(t)}'
         f'{" &middot; pw: " + html.escape(", ".join((p or "").split(chr(31)))) if p else ""}</span></li>'
         for u, s, p, t in rows)
-    return (f'<p class="x">These hosts block automated downloads on purpose (gofile signs every request '
-            f'and bans clients that do not). Open a link in Tor Browser, save the file into '
-            f'<code>~/Desktop/manual-intake</code>, and it is triaged within 30 minutes with the passwords '
-            f'listed here tried automatically.</p><ul class="dir">{li}</ul>')
+    return f'<ul class="dir">{li}</ul>'
 
 
 def sources_block():
@@ -304,33 +231,16 @@ def sources_block():
         s(n)["hashes"] = k
     rows = []
     for n, st in stats.items():
-        cr = [crawled.get(u) for u in name_urls.get(n, []) if crawled.get(u)]
-        fails = max((x[1] or 0) for x in cr) if cr else 0
-        empty = min((x[3] or 0) for x in cr) if cr else 0
-        if st["kept"]:
-            status = _pill("producing", "known")
-        elif cr and fails >= DEAD_SKIP:
-            status = _pill("retired: unreachable", "mute")
-        elif cr and empty >= DEAD_EMPTY:
-            status = _pill("retired: empty", "mute")
-        elif st["last"] and st["last"] >= _time.time() - 14 * 86400:
-            status = _pill("posting links", "dw")
-        else:
-            status = _pill("quiet", "mute")
-        rows.append((st["kept"], st["files"], st["links"], n, st, status))
+        rows.append((st["kept"], st["files"], st["links"], n, st))
     rows.sort(key=lambda x: (-x[0], -x[1], -x[2], x[3]))
     tr = "".join(
         f'<tr><td>{html.escape(n[:40])}</td><td class="n">{st["links"]}</td><td class="n">{st["fetched"]}</td>'
         f'<td class="n">{st["files"]}</td><td class="n">{st["kept"]}</td><td class="n">{st["review"]}</td>'
-        f'<td class="n">{st.get("hashes", 0)}</td><td class="d">{_ago(st["last"])}</td><td>{status}</td></tr>'
-        for _, _, _, n, st, status in rows[:40])
-    ret_u = sum(1 for v in crawled.values() if (v[1] or 0) >= DEAD_SKIP)
-    ret_e = sum(1 for v in crawled.values() if (v[3] or 0) >= DEAD_EMPTY and (v[1] or 0) < DEAD_SKIP)
-    return (f'<p class="x">Crawler: {len(crawled)} URLs tracked, {ret_u} retired as unreachable '
-            f'({DEAD_SKIP}+ straight failures, skipped), {ret_e} demoted as empty ({DEAD_EMPTY}+ empty fetches).</p>'
-            f'<div class="tw"><table class="st"><tr><th>Source</th><th class="n">Links</th><th class="n">Fetched</th>'
+        f'<td class="n">{st.get("hashes", 0)}</td><td class="d">{_ago(st["last"])}</td></tr>'
+        for _, _, _, n, st in rows[:40])
+    return (f'<div class="tw"><table class="st"><tr><th>Source</th><th class="n">Links</th><th class="n">Fetched</th>'
             f'<th class="n">Files</th><th class="n">Kept</th><th class="n">Review</th><th class="n">Hashes</th>'
-            f'<th>Last link</th><th>Status</th></tr>{tr}</table></div>')
+            f'<th>Last link</th></tr>{tr}</table></div>')
 
 
 def indicators_block():
@@ -356,9 +266,9 @@ def indicators_block():
         f'<span class="x">{html.escape(h.get("type", ""))} &middot; {html.escape(h.get("last", "")[:10])}</span> '
         f'{srclinks(h.get("source_links", []), h.get("sources", []))}</li>'
         for h in d.get("hashes", [])[:60] if isinstance(h, dict))
-    return ((f'<details open><summary>Sample hashes announced in posts ({len(d.get("hashes", []))})</summary>'
-             f'<ul class="dir">{hs}</ul></details>' if hs else '<p class="x">No sample hashes in posts.</p>') +
-            (f'<details><summary>Telegram bot C2 tokens ({len(d.get("tokens", []))})</summary>'
+    return ((f'<details open><summary>Hashes ({len(d.get("hashes", []))})</summary>'
+             f'<ul class="dir">{hs}</ul></details>' if hs else '<p class="x">None.</p>') +
+            (f'<details><summary>Telegram bot tokens ({len(d.get("tokens", []))})</summary>'
              f'<ul class="dir">{tk}</ul></details>' if tk else ''))
 
 
@@ -579,8 +489,8 @@ table.fn{{max-width:760px}} td.barc{{width:40%}} .bar{{background:#1f6feb;height
 @media(max-width:700px){{ul.dir,.pin ul{{columns:1}}}}
 </style></head><body>
 <h1>Dark Web Monitoring</h1>
-<p class="sub">Updated {now}. Goal: get dark-web malware to reverse engineering early.</p>
-<div class="topnav"><a href="#samples">Samples</a><a href="#funnel">Pipeline</a><a href="#manual">Manual downloads</a><a href="#sources">Sources</a><a href="#indicators">Indicators</a><a href="mentions.html">Mentions</a><a href="#telegram">Telegram</a><a href="#directory">Directory</a></div>
+<p class="sub">Updated {now}</p>
+<div class="topnav"><a href="#samples">Samples</a><a href="#funnel">Pipeline</a><a href="#manual">Manual downloads</a><a href="#sources">Sources</a><a href="#indicators">Hashes</a><a href="mentions.html">Mentions</a><a href="#telegram">Telegram</a><a href="#directory">Directory</a></div>
 <h2 id="samples">New samples this week</h2>
 <div class="mw">{samples_panel}</div>
 <h2 id="funnel">Pipeline</h2>
@@ -589,7 +499,7 @@ table.fn{{max-width:760px}} td.barc{{width:40%}} .bar{{background:#1f6feb;height
 {manual_panel}
 <h2 id="sources">Yield per source</h2>
 {sources_panel}
-<h2 id="indicators">Indicators from posts</h2>
+<h2 id="indicators">Hashes</h2>
 {indicators_panel}
 <h2 id="telegram">Telegram monitor</h2>
 {tgs}
