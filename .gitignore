@@ -19,3 +19,39 @@ __pycache__/
 
 # Open WebUI local session key (not a repo artifact)
 .webui_secret_key
+
+# Claude Code local settings (personal, not shared)
+.claude/settings.local.json
+
+# CTI tool-evaluation workspace: third-party clones, reproducible from their own
+# remotes, not vendored here (see cti-skills-deep-dive-and-ranking.md for the ranking).
+/a2/
+/a3/
+/a4/
+/a5/
+/a6/
+/a9/
+/a10/
+/a11/
+/r2/
+/r3/
+/r4/
+/r5/
+/r6/
+/r7/
+/r8/
+/r9/
+/r10/
+/r11/
+/t2/
+/t3/
+/t4/
+/t6/
+/t7/
+/t8/
+/capa/
+/misp-galaxy/
+/mitaka/
+/mthc/
+/tailcat/
+/vfeed/

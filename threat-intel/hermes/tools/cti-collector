@@ -1,0 +1,366 @@
+#!/usr/bin/env python3
+"""Passive CTI collector for the Hermes container (runs as user 'collector', no LLM).
+
+Writes to /srv/intel/intel.db (SQLite). Hermes only reads this database.
+Sources:
+  ransomware.live  recent victims (leak-site posts, sector, country)
+  cisa-kev         new CISA KEV entries; full catalog kept in /srv/intel/kev.json for cve-status
+  deepdarkCTI      daily diff of the source lists (new/removed groups, forums, channels)
+  telegram         text-only posts from channels in /srv/intel/telegram-channels.txt.
+                   Without an account it reads each channel's public web preview (t.me/s/<channel>).
+                   With /srv/intel/telegram.env (TG_API_ID / TG_API_HASH) it uses the API instead.
+                   Media is never downloaded and links are never followed.
+  exploit-db       new public exploits that carry a CVE (files_exploits.csv, every 6 hours)
+  ghsa             GitHub-reviewed critical/high advisories with a CVE (every 6 hours)
+  The last two feed `cve-status --pre-kev`, which ranks CVEs not yet in KEV.
+  opensourcemalware software-supply-chain write-ups (malicious npm/PyPI/etc packages).
+                   Headline + link only; no IOCs in the feed. Early warning, every 6 hours.
+Usage: collector.py [ransomware|ransomlook|kev|exploitdb|ghsa|deepdarkcti|opensourcemalware|telegram|all]
+"""
+import csv, hashlib, io, json, os, re, sqlite3, sys, time, urllib.request
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
+
+DB = "/srv/intel/intel.db"
+UA = {"User-Agent": "homelab-cti-collector/1.0"}
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def db():
+    con = sqlite3.connect(DB)
+    con.execute("""CREATE TABLE IF NOT EXISTS items (
+        id TEXT PRIMARY KEY, source TEXT, kind TEXT, title TEXT, body TEXT,
+        url TEXT, published TEXT, collected TEXT, meta TEXT)""")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_items_collected ON items(collected)")
+    con.execute("CREATE TABLE IF NOT EXISTS state (k TEXT PRIMARY KEY, v TEXT)")
+    return con
+
+
+def add(con, source, kind, title, body="", url="", published="", meta=None):
+    iid = hashlib.sha256(f"{source}|{kind}|{title}|{url}|{published}".encode()).hexdigest()[:32]
+    cur = con.execute("INSERT OR IGNORE INTO items VALUES (?,?,?,?,?,?,?,?,?)",
+                      (iid, source, kind, title[:500], body[:4000], url, published, now(), json.dumps(meta or {})))
+    return cur.rowcount
+
+
+def fetch(url, limit=20_000_000, headers=None):
+    with urllib.request.urlopen(urllib.request.Request(url, headers={**UA, **(headers or {})}), timeout=60) as r:
+        return r.read(limit).decode("utf-8", "replace")
+
+
+def due(con, key, hours):
+    """True when the source keyed `key` has not been fetched in the last `hours`."""
+    row = con.execute("SELECT v FROM state WHERE k=?", (key,)).fetchone()
+    return not row or time.time() - float(row[0]) >= hours * 3600
+
+
+def mark(con, key, value):
+    con.execute("INSERT OR REPLACE INTO state VALUES (?,?)", (key, str(value)))
+
+
+def ransomware(con):
+    victims = json.loads(fetch("https://api.ransomware.live/v2/recentvictims"))
+    n = 0
+    for v in victims:
+        n += add(con, "ransomware.live", "victim",
+                 f"{v.get('group', '?')}: {v.get('victim') or v.get('post_title', '?')}",
+                 v.get("description", ""), v.get("post_url") or v.get("url", ""),
+                 v.get("discovered") or v.get("attackdate", ""),
+                 {k: v.get(k) for k in ("group", "country", "activity", "sector", "domain", "attackdate")})
+    return n
+
+
+def ransomlook(con):
+    """RansomLook recent leak-site posts: an independent cross-source to ransomware.live."""
+    posts = json.loads(fetch("https://www.ransomlook.io/api/recent"))
+    n = 0
+    for v in posts:
+        grp = v.get("group_name") or "?"
+        link = v.get("link") or ""
+        domain = re.sub(r"^https?://", "", link).split("/")[0]
+        n += add(con, "ransomlook", "victim",
+                 f"{grp}: {v.get('post_title') or domain or '?'}",
+                 v.get("description", ""), link or "https://www.ransomlook.io/recent",
+                 (v.get("discovered") or "").replace(" ", "T"),
+                 {"group": grp, "domain": domain, "misp_uuid": v.get("misp_uuid"),
+                  "attackdate": (v.get("discovered") or "").replace(" ", "T")})
+    return n
+
+
+def kev(con):
+    """CISA Known Exploited Vulnerabilities: keep a local copy for cve-status and record new additions."""
+    if os.path.exists("/srv/intel/kev.json") and time.time() - os.path.getmtime("/srv/intel/kev.json") < 6 * 3600:
+        return "fresh (refreshed every 6 hours)"
+    raw = fetch("https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json")
+    data = json.loads(raw)
+    tmp = "/srv/intel/kev.json.tmp"
+    open(tmp, "w").write(raw)
+    os.replace(tmp, "/srv/intel/kev.json")
+    first_run = con.execute("SELECT 1 FROM state WHERE k='kev:seen'").fetchone() is None
+    n = 0
+    for v in data.get("vulnerabilities", []):
+        if first_run and v.get("dateAdded", "") < (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat():
+            continue
+        n += add(con, "cisa-kev", "kev",
+                 f"{v['cveID']}: {v.get('vendorProject')} {v.get('product')}: {v.get('vulnerabilityName')}",
+                 v.get("shortDescription", ""), f"https://nvd.nist.gov/vuln/detail/{v['cveID']}",
+                 v.get("dateAdded", ""),
+                 {k: v.get(k) for k in ("cveID", "dueDate", "knownRansomwareCampaignUse", "requiredAction")})
+    con.execute("INSERT OR REPLACE INTO state VALUES (?,?)", ("kev:seen", data.get("catalogVersion", "")))
+    return n
+
+
+EDB_CSV = "https://gitlab.com/exploit-database/exploitdb/-/raw/main/files_exploits.csv"
+CVE_RE = re.compile(r"CVE-\d{4}-\d{4,}", re.I)
+
+
+def exploitdb(con):
+    """Exploit-DB: record each new exploit that names a CVE. A public exploit is the strongest
+    early sign a CVE will be exploited, often well before CISA adds it to KEV."""
+    if not due(con, "edb:fetched", 6):
+        return "fresh (refreshed every 6 hours)"
+    last = int((con.execute("SELECT v FROM state WHERE k='edb:last_id'").fetchone() or ["0"])[0])
+    # First run: only the last 7 days, so the archive is not reported as new
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat() if last == 0 else ""
+    n, top = 0, last
+    for r in csv.DictReader(io.StringIO(fetch(EDB_CSV, limit=40_000_000))):
+        try:
+            eid = int(r["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        top = max(top, eid)
+        cves = sorted({c.upper() for c in CVE_RE.findall(r.get("codes") or "")})
+        added = r.get("date_added") or r.get("date_published") or ""
+        if eid <= last or not cves or (cutoff and added < cutoff):
+            continue
+        n += add(con, "exploit-db", "exploit", f"{', '.join(cves)}: {r.get('description', '')}", "",
+                 f"https://www.exploit-db.com/exploits/{eid}", added,
+                 {"cves": cves, "edb_id": eid, "type": r.get("type"), "platform": r.get("platform"),
+                  "verified": r.get("verified") == "1"})
+    mark(con, "edb:last_id", top)
+    mark(con, "edb:fetched", time.time())
+    return n
+
+
+GHSA_API = "https://api.github.com/advisories?type=reviewed&per_page=100&sort=published&direction=desc"
+
+
+def ghsa(con):
+    """GitHub-reviewed advisories, critical and high with a CVE only. Unauthenticated (60/hour),
+    so it runs every 6 hours and reads at most 5 pages."""
+    if not due(con, "ghsa:fetched", 6):
+        return "fresh (refreshed every 6 hours)"
+    row = con.execute("SELECT v FROM state WHERE k='ghsa:last_published'").fetchone()
+    last = row[0] if row else (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    n, top, url = 0, last, GHSA_API
+    for _ in range(5):
+        req = urllib.request.Request(url, headers={**UA, "Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            page, link = json.loads(r.read().decode("utf-8", "replace")), r.headers.get("Link", "")
+        older = False
+        for a in page:
+            pub = a.get("published_at") or ""
+            if pub <= last:
+                older = True
+                break
+            top = max(top, pub)
+            cve = a.get("cve_id")
+            if not cve or a.get("severity") not in ("critical", "high"):
+                continue
+            pkgs = sorted({f"{(v.get('package') or {}).get('ecosystem', '')}:{(v.get('package') or {}).get('name', '')}"
+                           for v in a.get("vulnerabilities") or []})[:10]
+            n += add(con, "ghsa", "advisory", f"{cve}: {a.get('summary', '')}", (a.get("description") or "")[:1500],
+                     a.get("html_url", ""), pub,
+                     {"cve": cve.upper(), "ghsa_id": a.get("ghsa_id"), "severity": a.get("severity"),
+                      "cvss": (a.get("cvss") or {}).get("score"), "epss": (a.get("epss") or {}).get("percentage"),
+                      "packages": pkgs})
+        nxt = re.search(r'<([^>]+)>;\s*rel="next"', link)
+        if older or not nxt:
+            break
+        url = nxt.group(1)
+    mark(con, "ghsa:last_published", top)
+    mark(con, "ghsa:fetched", time.time())
+    return n
+
+
+OSM_RSS = "https://opensourcemalware.com/rss.xml"
+# Their weekly podcast shares the feed ("The OpenSourceMalware Show #29", slugs
+# opensourcemalwareshow-episodeNN / opensourcemalware-show-episodeNN). Not intel.
+OSM_SKIP = re.compile(r"opensourcemalware[\s-]*show", re.I)
+
+
+def opensourcemalware(con):
+    """OpenSourceMalware feed: software-supply-chain write-ups (malicious packages across
+    npm, PyPI, RubyGems, Go, crates, VS Code / Open VSX extensions, AI skill registries).
+    Headline + link only; the feed carries no hashes or C2 (those live in the linked article),
+    so this is an early-warning / trending source, not an IOC feed. Refreshed every 6 hours."""
+    if not due(con, "osm:fetched", 6):
+        return "fresh (refreshed every 6 hours)"
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    root = ET.fromstring(fetch(OSM_RSS, limit=5_000_000))
+    n = 0
+    for it in root.iterfind(".//item"):
+        title = (it.findtext("title") or "").strip()
+        if not title:
+            continue
+        link = (it.findtext("link") or "").strip()
+        if OSM_SKIP.search(title + " " + link):
+            continue
+        desc = (it.findtext("description") or "").strip()
+        try:
+            pub_dt = parsedate_to_datetime(it.findtext("pubDate") or "")
+            if pub_dt.tzinfo is None:
+                pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+            pub_iso = pub_dt.isoformat()
+        except (TypeError, ValueError):
+            pub_dt, pub_iso = None, ""
+        if pub_dt and pub_dt < cutoff:   # never ingest the back catalogue (the feed carries months of it)
+            continue
+        n += add(con, "opensourcemalware", "supply-chain", title, desc, link, pub_iso)
+    mark(con, "osm:fetched", time.time())
+    return n
+
+
+def deepdarkcti(con):
+    """Diff the deepdarkCTI source lists. New/removed entries are intelligence in themselves."""
+    files = ["ransomware_gang.md", "forum.md", "markets.md", "telegram_threat_actors.md",
+             "telegram_infostealer.md", "discord.md", "exploits.md", "maas.md", "rat.md",
+             "phishing.md", "defacement.md", "twitter_threat_actors.md"]
+    n = 0
+    for f in files:
+        try:
+            text = fetch(f"https://raw.githubusercontent.com/fastfire/deepdarkCTI/main/{f}")
+        except Exception:
+            continue
+        rows = {l.strip() for l in text.splitlines() if l.startswith("|") and "---" not in l}
+        key = f"deepdarkcti:{f}"
+        prev = con.execute("SELECT v FROM state WHERE k=?", (key,)).fetchone()
+        if prev:
+            old = set(json.loads(prev[0]))
+            for r in rows - old:
+                n += add(con, "deepdarkCTI", f.replace(".md", ""), "added: " + re.sub(r"\s+", " ", r)[:300], published=now())
+            for r in old - rows:
+                n += add(con, "deepdarkCTI", f.replace(".md", ""), "removed: " + re.sub(r"\s+", " ", r)[:300], published=now())
+        con.execute("INSERT OR REPLACE INTO state VALUES (?,?)", (key, json.dumps(sorted(rows))))
+    return n
+
+
+class _TgPreview(HTMLParser):
+    """Pulls (post id, iso time, text) out of a t.me/s/<channel> page. Text only."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.posts, self._cur, self._text_depth, self._depth = [], None, 0, 0
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "div":
+            self._depth += 1
+            if a.get("data-post"):
+                self._cur = {"id": int(a["data-post"].rsplit("/", 1)[-1]), "time": "", "text": []}
+                self.posts.append(self._cur)
+            elif self._cur is not None and "tgme_widget_message_text" in a.get("class", "") and not self._text_depth:
+                self._text_depth = self._depth
+        elif tag == "br" and self._text_depth:
+            self._cur["text"].append("\n")
+        elif tag == "time" and self._cur is not None and a.get("datetime") and not self._cur["time"]:
+            self._cur["time"] = a["datetime"]
+
+    def handle_endtag(self, tag):
+        if tag == "div":
+            if self._text_depth and self._depth == self._text_depth:
+                self._text_depth = 0
+            self._depth -= 1
+
+    def handle_data(self, data):
+        if self._text_depth and self._cur is not None:
+            self._cur["text"].append(data)
+
+
+def telegram_web(con, chans):
+    """Read public channels through their web preview (t.me/s/<channel>). No account, no join,
+    no links followed, no media. Channels with the preview turned off are noted and skipped."""
+    n, skipped = 0, []
+    for ch in chans:
+        key = f"tgweb:{ch}"
+        last = int((con.execute("SELECT v FROM state WHERE k=?", (key,)).fetchone() or ["0"])[0])
+        try:
+            page = fetch(f"https://t.me/s/{ch}", limit=3_000_000)
+        except Exception as e:
+            skipped.append(f"{ch} ({type(e).__name__})")
+            time.sleep(3)
+            continue
+        p = _TgPreview()
+        p.feed(page)
+        if not p.posts:
+            skipped.append(f"{ch} (no public preview)")
+            time.sleep(3)
+            continue
+        top = last
+        # First read of a channel: keep only recent posts, so old history is not reported as new
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat() if last == 0 else ""
+        for post in p.posts:
+            top = max(top, post["id"])
+            text = re.sub(r"\n{3,}", "\n\n", "".join(post["text"])).strip()
+            if cutoff and post["time"] and post["time"] < cutoff:
+                continue
+            if post["id"] > last and text:
+                n += add(con, "telegram", ch, text.split("\n", 1)[0][:200], text,
+                         f"https://t.me/{ch}/{post['id']}", post["time"], {"via": "web-preview"})
+        con.execute("INSERT OR REPLACE INTO state VALUES (?,?)", (key, str(top)))
+        time.sleep(3)
+    con.execute("INSERT OR REPLACE INTO state VALUES (?,?)", ("tgweb:skipped", json.dumps(skipped)))
+    return f"{n} new" + (f", skipped: {', '.join(skipped)}" if skipped else "")
+
+
+def telegram(con):
+    chf = "/srv/intel/telegram-channels.txt"
+    chans = [c.split("#", 1)[0].strip().lstrip("@") for c in open(chf)] if os.path.exists(chf) else []
+    chans = [c for c in chans if c]
+    if not chans:
+        return "skipped (no channels in /srv/intel/telegram-channels.txt)"
+    envf = "/srv/intel/telegram.env"
+    if not os.path.exists(envf):
+        return telegram_web(con, chans)
+    env = dict(l.split("=", 1) for l in open(envf).read().splitlines() if "=" in l)
+    try:
+        from telethon.sync import TelegramClient
+    except ImportError:
+        return "skipped (telethon not installed)"
+    n = 0
+    with TelegramClient("/srv/intel/telegram.session", int(env["TG_API_ID"]), env["TG_API_HASH"]) as tg:
+        for ch in chans:
+            key = f"tg:{ch}"
+            last = int((con.execute("SELECT v FROM state WHERE k=?", (key,)).fetchone() or ["0"])[0])
+            top = last
+            try:
+                for m in tg.iter_messages(ch, min_id=last, limit=200):
+                    top = max(top, m.id)
+                    if m.message:  # text only; media is never downloaded
+                        n += add(con, "telegram", ch, m.message.split("\n", 1)[0][:200], m.message,
+                                 f"https://t.me/{ch}/{m.id}", m.date.isoformat())
+            except Exception as e:
+                add(con, "telegram", "error", f"{ch}: {type(e).__name__}", published=now())
+            con.execute("INSERT OR REPLACE INTO state VALUES (?,?)", (key, str(top)))
+            time.sleep(2)
+    return n
+
+
+if __name__ == "__main__":
+    what = sys.argv[1] if len(sys.argv) > 1 else "all"
+    con = db()
+    for name, fn in (("ransomware", ransomware), ("ransomlook", ransomlook), ("kev", kev), ("exploitdb", exploitdb),
+                     ("ghsa", ghsa), ("opensourcemalware", opensourcemalware), ("deepdarkcti", deepdarkcti),
+                     ("telegram", telegram)):
+        if what in (name, "all"):
+            try:
+                print(f"{name}: {fn(con)}")
+            except Exception as e:
+                print(f"{name}: error {type(e).__name__}: {e}")
+            con.commit()
+    con.close()

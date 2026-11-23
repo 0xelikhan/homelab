@@ -1,0 +1,14 @@
+[Unit]
+Description=Passive CTI collector (ransomware.live, deepdarkCTI, Telegram)
+After=network-online.target
+[Service]
+Type=oneshot
+User=collector
+Group=intel
+UMask=0027
+ExecStart=/usr/local/bin/cti-collector all
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/intel
+ProtectHome=yes
+PrivateTmp=yes

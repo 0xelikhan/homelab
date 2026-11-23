@@ -1,0 +1,9 @@
+# Code only. No secrets or host state.
+*.env
+*.token
+.homelable-pve-token
+*secret*
+id_rsa*
+id_ed25519*
+*.key
+*.pem

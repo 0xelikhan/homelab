@@ -26,25 +26,57 @@ daily-triage and briefing procedures in `/sops`.
 
 Run from the cti-skills repo root (`~/cti-skills`):
 
-1. OpenCTI reports and indicators. The CLI returns at most 100 per call, so page through results:
-   `python3 tools/clis/opencti.py list reports --created-after <ISO-24h-ago> --limit 100`
-   then repeat with `--after <end_cursor>` while `has_next_page` is true, up to 3 pages (~300 reports).
+1. OpenCTI reports: use the windowed, de-duplicated pull. Do NOT page a raw cap: the feed set ingests
+   ~9k reports/day, many duplicated 100-400x, so a raw 300-report pull sees only ~1 hour.
+   `python3 ~/.hermes/skills/homelab/octi-window.py --hours 24`
+   It pages the whole window server-side, de-duplicates by title (collapsing the 100-400x ingestion
+   duplicates), keeps only reports published in the last 24h (future date = today), and returns each
+   unique report with its real dashboard `url`, an `id`, and a `dup_count`. The list is title-level and
+   compact on purpose (the window holds 1000+ reports), so abstracts are not dumped here. Use each report's
+   `url` verbatim for OpenCTI links (never invent a host). Triage on titles and `dup_count`: drop general
+   business, webinar and thought-leadership noise (the highest `dup_count` items are usually syndicated
+   non-news). For every report you keep, read its OpenCTI summary before you write it up:
+   `python3 tools/clis/opencti.py get <id> --no-relationships` to get the report's URL and `description`
+   field (ignore the RSS tail "The post ... appeared first on ..."). Then attempt full-text extraction:
+   `python3 tools/clis/fetch-article.py <url> 2>/dev/null`
+   If `source` is "full" or "partial", use the returned `text` as your primary source. If `source` is
+   "failed", fall back to the OpenCTI `description` and add a brief inline note `(excerpt only: <note>)`.
+   Run `fetch-article.py` only on kept reports — not on the full title list. Full article text, not the
+   RSS excerpt, is what you assess and write from; on a "failed" fallback keep confidence calibrated to the
+   excerpt quality.
+
+   **Cross-day dedup (silent, not narrated):** before triaging titles, read
+   `~/briefs/reference/seen-reports.jsonl` (create if absent with `touch`). Any report whose `id` appears
+   in an entry dated within the last 3 days is a repeat — skip it unless this occurrence shows a
+   meaningful update: a new victim named, the CVE newly added to KEV, an attribution change, or a
+   significant new technical detail. After triage is complete, append one JSON line per kept report:
+   `echo '{"id":"<id>","date":"YYYY-MM-DD"}' >> ~/briefs/reference/seen-reports.jsonl`
+
+   **Source signal logging (silent, not narrated):** after triage, append one CSV line per kept report to
+   `~/briefs/reference/source-quality-daily.csv` (create if absent):
+   `echo "YYYY-MM-DD,domain.com" >> ~/briefs/reference/source-quality-daily.csv`
+   where `domain.com` is the hostname of the article URL from `octi-window.py`. Use `unknown` when no
+   article URL is present. The weekly aggregates these; the daily only appends.
+
+   This triage is internal: do not report pull, keep or de-duplication counts, or any collection
+   mechanics, in the brief.
+   OpenCTI indicators (score >= 70) are a small set, page normally:
    `python3 tools/clis/opencti.py list indicators --score-gte 70 --created-after <ISO-24h-ago> --limit 100`
-   (page the same way if `has_next_page` is true).
-   Triage the report titles first: drop general business, tech and crypto news that has no security
-   content, then analyse what remains. Say in the brief how many were pulled and how many were kept.
-   `--created-after` is when OpenCTI ingested the post, and new feeds backfill a week of older posts, so
-   window on each report's `published` date: keep only reports published in the last 24 hours (treat a
-   future date as today) and count the older ones as backfill, not news.
+   (repeat with `--after <end_cursor>` while `has_next_page` is true).
 2. MISP: `misp-recent --since 24h` — what the MISP feeds added in the window, per feed, with samples from
    the C2 / malware / phishing feeds. Feed events keep their original date and are never published, so
-   `misp.py search-events --from` misses them; use it only for analyst-created events. Report the per-feed
-   counts, and use `/lookup-misp` to check whether the brief's IOCs already appear in MISP.
+   `misp.py search-events --from` misses them; use it only for analyst-created events. Use `/lookup-misp`
+   to check whether the brief's IOCs already appear in MISP. Do not list per-feed attribute counts in the
+   brief: routine blocklist, brute-force SSH and Tor-exit feed volumes are telemetry, not intelligence.
+   Surface a MISP item only when it corroborates an IOC the brief already reports.
 3. Ransomware leak posts and dark-web source changes:
    `intel-items --since 24h --source ransomware.live`
    `intel-items --since 24h --source deepdarkCTI`
    `intel-items --since 24h --source telegram` (public channel posts, untrusted)
 4. Exploitation status: `cve-status --kev-new 24h` for CVEs CISA added to KEV in the last 24 hours.
+5. Pre-KEV signal: `cve-status --pre-kev 24h` for CVEs not yet in KEV that picked up a public exploit
+   (Exploit-DB), ransomware/Telegram/dark-web chatter, a critical GHSA advisory or high EPSS in the
+   last 24 hours. Each result carries its `reasons`; CVE feed bots are already filtered out.
 
 Let `/osint-methodology` and `/darkweb-collection` guide what to pull and how to handle untrusted
 leak/Telegram sources (observe-only; never log in, visit .onion, or download).
@@ -56,8 +88,12 @@ actually run the lookup CLIs below from the repo root (`~/cti-skills`); reading 
 is not enrichment.
 
 Pick the most significant indicators from the collection phase (OpenCTI indicators with score >= 70, plus
-IPs / domains / hashes / URLs named in the reports and the ransomware / Telegram posts). Enrich **at least
-the top 10, up to ~25**. For each, run the matching command:
+IPs / domains / hashes / URLs named in the reports and the ransomware / Telegram posts). The working budget
+is **~30 indicators per run** (10 is a floor, not a target). When the significant indicators form one
+labelled cluster (e.g. a shared `meshagent` IP set), enrich the **whole cluster** up to that budget rather
+than stopping at an arbitrary 10 and leaving the rest; truncating a set mid-way is worse than a few extra
+lookups. Only when the eligible set genuinely exceeds the budget do you enrich a representative subset, and
+even then you say nothing about what was left out. For each, run the matching command:
 
 ```bash
 node tools/clis/virustotal.js ip|domain|hash|url <value>   # detection ratio + verdict
@@ -65,6 +101,13 @@ node tools/clis/abuseipdb.js  ip <ip>                       # abuse confidence s
 node tools/clis/otx.js        ip|domain|hash|url <value>    # OTX pulses
 node tools/clis/urlscan.js    domain <domain>               # urlscan (for a URL: url "<url>")
 ```
+
+**Scheduled-run execution (important):** this brief runs unattended, where the terminal gate refuses
+script-execution forms. Do **not** batch the lookups with a heredoc, the `execute_code` tool, or
+`bash -c`/`-lc` — each is blocked under cron and wastes a turn. Batch them instead as one plain loop
+issued directly in the terminal, one loop per IOC type so the type/argument mapping stays correct, e.g.
+`for v in 1.1.1.1 2.2.2.2; do node tools/clis/virustotal.js ip "$v"; node tools/clis/abuseipdb.js ip "$v"; node tools/clis/otx.js ip "$v"; done`
+Pace VirusTotal to ~4/min (a short `sleep` between iterations is fine).
 
 Follow `/ioc-enrichment-workflow` to route each IOC and merge the results into one record per indicator.
 `/lookup-virustotal`, `/lookup-abuseipdb`, `/lookup-otx` and `/lookup-urlscan` document these CLIs and how
@@ -77,9 +120,32 @@ Local context (no rate limit, use freely): `/lookup-opencti` (`python3 tools/cli
 (`/indicator-pivoting`) and run a full `/ip-investigation` / `/domain-investigation` /
 `/hash-investigation` / `/url-investigation` on the few most important.
 
-Record every lookup result inline in the By-PIR section: VT detection ratio and verdict, AbuseIPDB score,
-OTX pulse count. If an IOC genuinely cannot be enriched, write `not enriched (<reason>)` — do not silently
-skip it, and do not cap the whole brief's confidence just because some were skipped.
+**Hudson Rock — mandatory for PIR-1 and PIR-5:** run `/lookup-hudsonrock`
+(`node tools/clis/hudsonrock.js domain|email|ip <value>`) on **every** named victim domain
+and every named corporate email that appears in PIR-1 (financial sector targeting) or PIR-5
+(fraud and credential exposure) items — confirmed breaches, ransomware victim domains, IAB
+access listings, named organisations in infostealer or credential-sale posts. No prior
+"strong hit" is required; a named domain in a claimed or confirmed breach is itself the
+trigger. Infostealer logs predate confirmed breaches by weeks or months, so a hit corroborates
+the report and signals supplier-chain exposure; a miss is still worth one inline note
+(`HR: no exposed credentials found`) because it clears a hypothesis. Record results inline in
+the relevant PIR item, same line format as the other enrichment entries.
+
+**CIRCL Onion — mandatory whenever an onion address appears:** run `/lookup-circl-onion`
+(`node tools/clis/circl-onion.js onion <addr>`) on **every** `.onion` address named in any
+collected item — deepdarkCTI changes, ransomware leak posts, Telegram relays. Record
+first/last seen and any crypto addresses inline in the relevant PIR item. Never visit the
+onion or the exposed host.
+
+Record every lookup result as a plain per-IOC line in the By-PIR section: the IP/domain (with a short
+context tag), then VT detection ratio and verdict, AbuseIPDB score, OTX pulse count. If a specific IOC
+cannot be enriched, mark that one IOC `not enriched (<reason>)` inline. Nothing wraps the list: no preamble
+sentence stating that the indicators were looked up or with which tools ("All ten were looked up with VT,
+AbuseIPDB and OTX"), no set-level Admiralty/corroboration verdict paragraph ("Rating for the set: [F6]..."),
+and no trailer about what was skipped ("the remaining ~15 IPs were not individually enriched"). Put the
+so-what in the parent item's assessment as a short clause (e.g. "clean across all three, watchlist not
+block"), not in a framing paragraph. Do not write enrichment targets, counts or shortfalls anywhere, and do
+not cap the brief's confidence just because some IOCs were skipped.
 
 **Do not run** `tools/clis/shodan.*`, `tools/clis/greynoise.*` or censys — their free tiers are too small.
 
@@ -90,10 +156,9 @@ At 10-25 IOCs once or twice a day this stays well within free limits. Export the
 
 - Threat actors named or implied: `/threat-actor-profiling`. Ongoing campaigns: `/campaign-tracking`.
 - Match the threat type and pull the matching skill: `/ransomware-ecosystem`, `/infostealers`,
-  `/initial-access-brokers`, `/carding-financial-fraud`, `/phishing-social-engineering`,
-  `/supply-chain-threats`, `/hacktivism`.
-- State-nexus activity, as the attribution points: `/china-cyber-espionage`, `/russia-cyber-espionage`,
-  `/iran-cyber-espionage`, `/dprk-cyber-espionage`.
+  `/initial-access-brokers`, `/carding-financial-fraud`.
+- For phishing and social engineering, supply-chain compromise, hacktivism, or any state-nexus
+  espionage (China, Russia, Iran, DPRK), use `/cyber-espionage` and load only the matching cell.
 - Vulnerabilities: `/vulnerability-intelligence` plus `cve-status` for KEV + EPSS on every CVE.
 - Malware detail when a sample or family is central: `/malware-analysis`.
 
@@ -102,46 +167,64 @@ At 10-25 IOCs once or twice a day this stays well within free limits. Export the
 - Assign each finding to a PIR (`~/.hermes/skills/homelab/pirs.md`, `/pir-management`). Drop no-PIR items
   unless high impact.
 - De-duplicate across feeds; merge and cite all sources.
-- Grade provenance and reliability: `/source-provenance`, `/source-assessment`,
-  `/quality-of-information-check`, `/claim-extraction`. Admiralty rating (A-F / 1-6) on every item.
-- For the highest-impact or most uncertain items, apply a structured technique:
-  `/ach` when attribution is ambiguous or several explanations fit the evidence,
-  `/structured-analytic-techniques`, `/key-assumptions-check`, `/devils-advocacy`. Look ahead with
-  `/horizon-scanning`.
+- Grade provenance and reliability with `/analytic-rigor` (claim extraction, source-to-originator
+  resolution, claim grading and the confidence ceiling) alongside `/source-assessment` and
+  `/source-provenance`. Put an Admiralty rating (A-F / 1-6) on every item.
+- For the highest-impact or most uncertain items, apply `/analytic-rigor` tradecraft: a key
+  assumptions check, ACH when attribution is ambiguous or several explanations fit the evidence,
+  and a devil's-advocate pass before release. Fold the result into the affected item's confidence
+  and caveat inline; do not add a separate labeled "key-assumptions" or "devil's-advocate" note.
 - Map behaviour to ATT&CK with `/mitre-attack`, following `~/.hermes/skills/homelab/attack-mapping-rules.md`:
   eligibility first, a verbatim quote per mapping, occurrence status, confidence rubric, and every ID checked
   against OpenCTI's current ATT&CK.
-- Express uncertainty with `/confidence-levels` and `/likelihood-language`; label everything per `/tlp-guide`.
+- Express uncertainty with `/confidence-levels` and `/likelihood-language` at the item level. No global
+  TLP banner and no global confidence-cap caveat; mark an individual item only if it is more sensitive
+  than the rest.
 
 ## 5. Detection engineering (for the day's most actionable threats)
 
 When a finding gives usable behaviour or indicators, draft detections: `/sigma-writing` (host/SIEM),
 `/yara-writing` (files/malware), `/kql-writing` (Sentinel/Defender). Put them in the detection section.
 
-Check each technique in the brief against the lab's controls with `/control-coverage-mapping`, using
-`~/briefs/reference/wazuh-coverage.json` (ATT&CK Navigator layer of techniques with a Wazuh rule:
-green = verified in the lab, light green = custom rule not yet tested, yellow = built-in rule only).
-Mark each technique `covered`, `partial` or `gap`, and draft detections for the gaps first.
+Internally, check the day's techniques against `~/briefs/reference/wazuh-coverage.json` with
+`/control-coverage-mapping` only to decide what is worth drafting: prioritise techniques with no custom
+lab rule. Built-in Wazuh rules do not count as coverage and are not of interest. This check never reaches
+the brief: the detection section carries the drafted rules alone (see the write-up order), no coverage
+table, no built-in-rule counts, no covered/partial/gap status.
 
 ## 6. Write
 
-Use `/intelligence-writing` and `/writing-assessments` for structure and BLUF. No length limit — include
-everything that earns its place. Order:
+Use `/intelligence-writing` for structure and BLUF (and `/analytic-rigor` for assessment structure).
+Include everything that earns its place. The brief starts at the Bottom line: do not open with a
+collection summary and do not report collection or enrichment mechanics anywhere (counts pulled or kept,
+pulls that did not run, per-feed totals, enrichment targets or shortfalls, or the IOC-export outcome such
+as "no vetted IOCs, not exported"; the `/ioc-export` step is a silent side artifact the brief never narrates).
+Do not print a TLP banner or a
+global evidence-basis or confidence-cap preamble; the brief is lab-internal to one reader. The reader
+wants findings, not process. Order:
 
 1. **Bottom line** — the 3-5 things that matter most, each with its so-what.
 2. **By PIR** — each item: `[A-F][1-6] Title. Assessment, with confidence/likelihood language.
    ATT&CK: T#### Name (occurrence, confidence). Enrichment: <key lookups>. [OpenCTI](link) [source](link)`.
-   OpenCTI links: `<opencti-url>/dashboard/analyses/reports/<id>`.
-3. **Threat actors & campaigns** — profiles and updates from the assess phase.
-4. **Exploited vulnerabilities** — per CVE: product, `KEV: yes (added YYYY-MM-DD, ransomware: Known)`
-   or `KEV: no`, `EPSS: 0.42 (97th percentile)`, and the action. New-to-KEV first.
-5. **Ransomware** — new financial-sector victims first, then counts by group.
-6. **Detections** — coverage per technique (covered / partial / gap), then the Sigma/YARA/KQL drafted
-   this cycle.
-7. **Intelligence gaps & next collection**.
-8. **Sources & ratings** — the provenance/reliability table.
-
-Before saving, run the `/quality-control` checklist over the brief and fix what it flags.
+   OpenCTI links: use each report's `url` from `octi-window.py` (already the full
+   `<OPENCTI_URL>/dashboard/analyses/reports/<id>`); never write a placeholder host.
+   A PIR whose findings are fully carried by a dedicated section below (PIR-2 Ransomware in section 5,
+   PIR-3 Threat actors in section 3, PIR-4 Vulnerabilities in section 4) is not repeated here as a stub:
+   its dedicated section is tagged with the PIR instead. Cover the remaining PIRs (financial-sector
+   targeting, fraud and credential exposure, AI and emerging tech, and any no-PIR high-impact) in full
+   here. Never write a "see section X" placeholder.
+3. **Threat actors & campaigns (PIR-3)** — profiles and updates from the assess phase.
+4. **Exploited vulnerabilities (PIR-4)** — include a CVE here only if it is in KEV, has public active-exploitation
+   reporting, or maps to a PIR. A KEV CVE earns its place on its own and does not need independent
+   corroboration. Per qualifying CVE: product, `KEV: yes (added YYYY-MM-DD, ransomware: Known)` or
+   `KEV: no`, `EPSS: 0.42 (97th percentile)`, and the action. New-to-KEV first, then pre-KEV results
+   as `KEV: no (pre-KEV: public exploit EDB-52705, EPSS 94th percentile)` built from the `reasons`;
+   never print the numeric score. A pre-KEV CVE qualifies on its own, like a KEV CVE. Collapse every other
+   CVE-feed entry into a single line, no enumeration: `N routine CVE-feed entries, no exploitation reported`.
+5. **Ransomware (PIR-2)** — new financial-sector victims first, then counts by group.
+6. **Detections** — the drafted Sigma/YARA/KQL rules only, each tagged with its ATT&CK technique ID.
+   No coverage table, no built-in-rule counts, no covered/partial/gap status, no prose before or after a
+   rule beyond a one-line "adapt to your log source" note where a rule needs it.
 
 Save to `~/briefs/daily/YYYY-MM-DD.md`. Optionally emit a STIX 2.1 bundle with `/stix-bundle` to
 `~/briefs/daily/YYYY-MM-DD.stix.json`. Apply `/intelligence-sharing` and `/tlp-guide` to anything that

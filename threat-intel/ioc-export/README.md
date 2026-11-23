@@ -11,7 +11,7 @@
 
 | Source | What |
 |---|---|
-| MISP | IDS-flagged `ip-dst`, `ip-src`, `domain`, `hostname`, `url`, `ip-dst|port`, warning lists applied. Paged, 2000 per request |
+| MISP | IDS-flagged `ip-dst`, `ip-src`, `domain`, `hostname`, `url`, `ip-dst|port`, warning lists applied. Filtered on the attribute date (feed events are never published, so the publish date would freeze the lists), newest first, paged 2000 per request |
 | OpenCTI | STIX indicators (IPv4, domain, URL) with a score of 40 or more, not revoked |
 
 OpenCTI indicators go first, MISP fills the rest. Up to 100,000 IPs and 100,000 domains.

@@ -1,0 +1,9 @@
+# Version CODE ONLY. Secrets (telegram.json, API keys), source lists
+# (sources.json, actors.json, deepdarkCTI/), collected data (*.db, *.json
+# state, iocs/) and malware samples (quarantine/) stay in-lab, never committed.
+*
+!.gitignore
+!.gitattributes
+!README.md
+!*.py
+!*.sh
