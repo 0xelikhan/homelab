@@ -133,10 +133,19 @@ are local with no limit.
   `/analytic-rigor` (threat-assessment structure) for the strategic judgement on what this means for
   the financial sector over the coming weeks. Split findings into strategic, operational and tactical
   levels.
-- **Source quality** (`/feedback-loops`): for the week's OpenCTI reports, count kept vs dropped-as-noise
-  per feed (by the report's source URL domain). Append the table with the week number to
-  `~/briefs/reference/source-quality.md` so trends build up over time. This is internal collection tuning:
-  keep it in that reference file and do not print the feed-quality table in the roundup body.
+- **Source quality** (`/feedback-loops`): read `~/briefs/reference/source-quality-daily.csv` and count
+  kept occurrences per domain for entries dated within this week (7 days). Sort by frequency descending.
+  Append the aggregated table with the week number to `~/briefs/reference/source-quality.md`:
+  ```
+  ## YYYY-Www
+  | Source domain | Kept this week |
+  |---|---|
+  | bleepingcomputer.com | 8 |
+  ...
+  ```
+  Also flag any domain with 0 kept entries that appeared in prior weeks as a candidate to drop from ingest.
+  This is internal collection tuning: keep it in that reference file and do not print the feed-quality
+  table in the roundup body.
 
 ## 5. Detection engineering
 

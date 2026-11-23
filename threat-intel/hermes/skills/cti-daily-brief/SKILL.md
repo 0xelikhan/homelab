@@ -43,8 +43,23 @@ Run from the cti-skills repo root (`~/cti-skills`):
    "failed", fall back to the OpenCTI `description` and add a brief inline note `(excerpt only: <note>)`.
    Run `fetch-article.py` only on kept reports — not on the full title list. Full article text, not the
    RSS excerpt, is what you assess and write from; on a "failed" fallback keep confidence calibrated to the
-   excerpt quality. This triage is internal: do not report pull, keep or de-duplication counts, or any
-   collection mechanics, in the brief.
+   excerpt quality.
+
+   **Cross-day dedup (silent, not narrated):** before triaging titles, read
+   `~/briefs/reference/seen-reports.jsonl` (create if absent with `touch`). Any report whose `id` appears
+   in an entry dated within the last 3 days is a repeat — skip it unless this occurrence shows a
+   meaningful update: a new victim named, the CVE newly added to KEV, an attribution change, or a
+   significant new technical detail. After triage is complete, append one JSON line per kept report:
+   `echo '{"id":"<id>","date":"YYYY-MM-DD"}' >> ~/briefs/reference/seen-reports.jsonl`
+
+   **Source signal logging (silent, not narrated):** after triage, append one CSV line per kept report to
+   `~/briefs/reference/source-quality-daily.csv` (create if absent):
+   `echo "YYYY-MM-DD,domain.com" >> ~/briefs/reference/source-quality-daily.csv`
+   where `domain.com` is the hostname of the article URL from `octi-window.py`. Use `unknown` when no
+   article URL is present. The weekly aggregates these; the daily only appends.
+
+   This triage is internal: do not report pull, keep or de-duplication counts, or any collection
+   mechanics, in the brief.
    OpenCTI indicators (score >= 70) are a small set, page normally:
    `python3 tools/clis/opencti.py list indicators --score-gte 70 --created-after <ISO-24h-ago> --limit 100`
    (repeat with `--after <end_cursor>` while `has_next_page` is true).
