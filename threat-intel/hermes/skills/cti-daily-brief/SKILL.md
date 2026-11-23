@@ -36,10 +36,15 @@ Run from the cti-skills repo root (`~/cti-skills`):
    `url` verbatim for OpenCTI links (never invent a host). Triage on titles and `dup_count`: drop general
    business, webinar and thought-leadership noise (the highest `dup_count` items are usually syndicated
    non-news). For every report you keep, read its OpenCTI summary before you write it up:
-   `python3 tools/clis/opencti.py get <id> --no-relationships`, and use the `description` field (ignore the
-   RSS tail "The post ... appeared first on ..."). That summary, not the title, is what you assess and write
-   from; it is a summary, not the full article, so keep confidence calibrated accordingly. This triage is
-   internal: do not report pull, keep or de-duplication counts, or any collection mechanics, in the brief.
+   `python3 tools/clis/opencti.py get <id> --no-relationships` to get the report's URL and `description`
+   field (ignore the RSS tail "The post ... appeared first on ..."). Then attempt full-text extraction:
+   `python3 tools/clis/fetch-article.py <url> 2>/dev/null`
+   If `source` is "full" or "partial", use the returned `text` as your primary source. If `source` is
+   "failed", fall back to the OpenCTI `description` and add a brief inline note `(excerpt only: <note>)`.
+   Run `fetch-article.py` only on kept reports — not on the full title list. Full article text, not the
+   RSS excerpt, is what you assess and write from; on a "failed" fallback keep confidence calibrated to the
+   excerpt quality. This triage is internal: do not report pull, keep or de-duplication counts, or any
+   collection mechanics, in the brief.
    OpenCTI indicators (score >= 70) are a small set, page normally:
    `python3 tools/clis/opencti.py list indicators --score-gte 70 --created-after <ISO-24h-ago> --limit 100`
    (repeat with `--after <end_cursor>` while `has_next_page` is true).
