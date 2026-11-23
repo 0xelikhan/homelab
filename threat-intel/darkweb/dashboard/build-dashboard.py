@@ -166,7 +166,7 @@ def samples_block():
     rows = _q(c, "SELECT sha256,origin,source_name,category,filetype,kept,known,family,reasons,"
                  "mb_status,capa_state,caps,attack,ts,pruned FROM triage WHERE kept IN (1,2) AND ts>=? "
                  "ORDER BY (origin='known-feed'), ts DESC", (cut,))
-    dw = [r for r in rows if r[1] != "known-feed"]
+    dw = [r for r in rows if r[1] in ("darkweb", "telegram")]
     kn = [r for r in rows if r[1] == "known-feed"]
     novel = sum(1 for r in rows if r[9] == "novel" or vt.get(r[0], {}).get("status") == "not-found")
     pend = _q(c, "SELECT count(*) FROM triage WHERE capa_state='pending'")
@@ -176,7 +176,7 @@ def samples_block():
             f'<div><b>{sum(1 for r in dw if r[5] == 2)}</b><span>dark web review</span></div>'
             f'<div><b>{len(kn)}</b><span>known feed</span></div>'
             f'<div><b>{novel}</b><span>not in MB or VT</span></div>'
-            f'<div><b>{pend}</b><span>waiting for capa</span></div></div>')
+            f'<div><b>{pend}</b><span>in the capa queue</span></div></div>')
 
     def row(r):
         sha, origin, src, cat, ftype, kept, known, fam, reasons, mb, cst, caps, atk, ts, pruned = r
@@ -238,7 +238,8 @@ def funnel_block():
         out.append(("Executables and scripts analysed",
                     one("SELECT count(*) FROM triage WHERE origin!='known-feed' AND "
                         "category IN ('pe','elf','macho','script') AND ts>=?", a)))
-        out.append(("Waiting for capa", one("SELECT count(*) FROM triage WHERE kept=3 AND ts>=?", a)))
+        out.append(("Unflagged binaries waiting for a capa verdict",
+                    one("SELECT count(*) FROM triage WHERE kept=3 AND ts>=?", a)))
         out.append(("Review", one("SELECT count(*) FROM triage WHERE origin!='known-feed' AND kept=2 AND ts>=?", a)))
         out.append(("Kept for RE", one("SELECT count(*) FROM triage WHERE origin!='known-feed' AND kept=1 AND ts>=?", a)))
         return out
@@ -253,8 +254,10 @@ def funnel_block():
     unx = one("SELECT count(*) FROM triage WHERE reasons='archive:unextractable' AND ts>=?", (cut,))
     since = one("SELECT min(ts) FROM fetch_log")
     fl = " &middot; ".join(f'{html.escape(o)} {n}' for o, n in fails) or "none yet"
-    note = (f'<p class="x">Fetch failures (latest outcome per link, logged since {_ago(since) or "now"}): {fl}. '
-            f'Archives that would not open this week: {unx}.</p>')
+    note = (f'<p class="x">Fetch outcomes are logged since {_ago(since) or "now"}, so "Fetched" all-time starts there. '
+            f'Failures (latest outcome per link): {fl}. Archives that would not open this week: {unx}. '
+            f'Before 2026-11-23 pruning deleted kept samples from the database, so older keeps are missing '
+            f'from these counts.</p>')
     return (f'<table class="fn"><tr><th>Stage</th><th class="n">7 days</th><th class="n">All time</th><th></th></tr>'
             f'{"".join(trs)}</table>{note}')
 

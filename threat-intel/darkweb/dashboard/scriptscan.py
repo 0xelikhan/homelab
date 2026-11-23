@@ -125,15 +125,37 @@ STEALTH = {"wsh-shell", "wmi-process", "ps-hidden", "ps-encoded", "lolbin", "per
            "ps-assembly-load", "cradle"}
 
 
+# Signed / vendor-published admin tooling (Microsoft CSS-Exchange HealthChecker.ps1 hit s7 on
+# WMI + web request + crypto). Without obfuscation, a vendor header means admin tool, not loader.
+VENDOR = re.compile(r"copyright\s*(?:\(c\)|©)?\s*microsoft corporation|"
+                    r"#\s*sig\s*#\s*begin signature block|github\.com/microsoft/|"
+                    r"copyright\s*(?:\(c\))?\s*(?:vmware|citrix|dell|hewlett|cisco|ibm|oracle)\b", re.I)
+CODE_LINE = re.compile(r"[$={};]")
+
+
+def code_ratio(t):
+    """Share of non-empty lines that look like code. A log or transcript of a script run mentions
+    the same cmdlets (Invoke-WebRequest, Win32_Process) but is prose: almost no $ { } = ; lines."""
+    lines = [l for l in t.splitlines()[:4000] if l.strip()]
+    if len(lines) < 30:                                  # short files (one-line cradles) are never "logs"
+        return 1.0
+    return sum(1 for l in lines if CODE_LINE.search(l)) / len(lines)
+
+
 def verdict(path):
     """(malicious_bool, hits[]). Malicious = score >= KEEP_SCORE and at least one payload,
-    stealth or obfuscation hit."""
+    stealth or obfuscation hit, unless the file is not code (a log/transcript) or is unobfuscated
+    vendor admin tooling."""
     try:
         t = read_text(path)
     except Exception:
         return False, []
     score, hits, groups = scan_text(t)
     mal = score >= KEEP_SCORE and ("obf" in groups or bool(set(hits) & (PAYLOAD | STEALTH)))
+    if mal and code_ratio(t) < 0.10:
+        mal = False; hits.append("not-code")
+    if mal and "obf" not in groups and VENDOR.search(t[:200000]):
+        mal = False; hits.append("vendor-script")
     return mal, ["s%d" % score] + hits
 
 
