@@ -1,0 +1,10 @@
+[Unit]
+Description=capa stage: ATT&CK detail for kept samples, verdict for unflagged PE/ELF
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/user/Desktop/cti
+# flock: never two capa stages at once (each sample takes 4-6 min on this VM)
+ExecStart=/usr/bin/flock -n /home/user/.cache/cti-capa.lock /usr/bin/python3 triage.py --capa --budget 1500
+ExecStartPost=/usr/bin/python3 build-dashboard.py
+Nice=10

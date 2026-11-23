@@ -1,0 +1,7 @@
+[Unit]
+Description=Dark-web workstation bridge: VirusTotal status + Hermes alerts for new keeps
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/bin/darkweb-bridge.py

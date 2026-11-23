@@ -1,0 +1,10 @@
+[Unit]
+Description=capa stage every 30 min (no-op when the queue is empty)
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
