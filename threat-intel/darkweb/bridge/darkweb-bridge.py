@@ -108,7 +108,8 @@ def main():
                    input=json.dumps(vt_out), text=True, timeout=60)
 
     # 2. alerts for new dark-web / Telegram keeps (not known-feed, not review)
-    first_run = not st["alerted"]
+    first_run = not st.get("initialized")
+    st["initialized"] = True
     new = [k for k in keeps if k["kept"] == 1 and k["origin"] != "known-feed"
            and k["sha256"] not in st["alerted"]]
     lines = []

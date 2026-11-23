@@ -818,6 +818,7 @@ def reclassify():
 
 if __name__ == "__main__" and "--reclassify" in sys.argv:
     reclassify()
+    export(init_db(), len(directory_targets()), 0)      # refresh malware-findings.json too
     raise SystemExit(0)
 
 if __name__ == "__main__":
