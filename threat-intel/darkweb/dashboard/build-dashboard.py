@@ -269,8 +269,9 @@ def manual_block():
         f'{" &middot; pw: " + html.escape(", ".join((p or "").split(chr(31)))) if p else ""}</span></li>'
         for u, s, p, t in rows)
     return (f'<p class="x">These hosts block automated downloads on purpose (gofile signs every request '
-            f'and bans clients that do not). Fetch by hand in Tor Browser if a link matters, then drop '
-            f'the file into ~/tg-intake so triage picks it up.</p><ul class="dir">{li}</ul>')
+            f'and bans clients that do not). Open a link in Tor Browser, save the file into '
+            f'<code>~/Desktop/manual-intake</code>, and it is triaged within 30 minutes with the passwords '
+            f'listed here tried automatically.</p><ul class="dir">{li}</ul>')
 
 
 def sources_block():

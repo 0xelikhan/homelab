@@ -1074,6 +1074,32 @@ def intake_local(c):
     return kept
 
 
+MANUAL_INTAKE = os.path.expanduser("~/Desktop/manual-intake")   # Tor Browser can save to ~/Desktop
+
+
+def intake_manual(c):
+    """Files a human downloaded by hand (gofile and other hosts that block automation) and
+    saved into ~/Desktop/manual-intake. Same triage path; archive passwords are the hints and
+    source names recorded with the manual-download links. Skips files still being written."""
+    if not os.path.isdir(MANUAL_INTAKE):
+        os.makedirs(MANUAL_INTAKE, exist_ok=True)
+        return 0
+    pws = []
+    for pw, src in c.execute("SELECT password, source_name FROM manual ORDER BY ts DESC LIMIT 40"):
+        pws += [p for p in (pw or "").split("\x1f") if p] + source_passwords(src)
+    pws = list(dict.fromkeys(pws))[:40]
+    kept = 0
+    for f in sorted(os.listdir(MANUAL_INTAKE)):
+        p = os.path.join(MANUAL_INTAKE, f)
+        if f.startswith(".") or f.endswith((".part", ".crdownload")) or not os.path.isfile(p):
+            continue
+        if time.time() - os.path.getmtime(p) < 60 or quarantine_mb() >= BUDGET_MB:
+            continue
+        kept += triage_one(c, p, "manual://" + f, "manual", pws)
+        c.commit()
+    return kept
+
+
 # --------------------------------------------------------------- known-malware intel (key-gated)
 KEYS_FILE    = os.path.expanduser("~/.cti-keys.json")   # {"abuse_ch":"...","malshare":"..."}
 KNOWN_INTAKE = os.path.expanduser("~/known-intake")
@@ -1265,6 +1291,7 @@ def main():
     c = sqlite3.connect(DB, timeout=120); init_db(c); prune(c)
     pulled = kept = 0
     kept += intake_local(c)             # Telegram-collected samples first (already downloaded)
+    kept += intake_manual(c)            # hand-downloaded files (gofile etc.)
     for url, src, pw in candidates(c):
         if pulled >= MAX_PULL_PER_RUN or quarantine_mb() >= BUDGET_MB:
             break
@@ -1312,5 +1339,8 @@ if __name__ == "__main__":
         capa_stage(b)
     elif "--export-keeps" in sys.argv:
         export_keeps()
+    elif "--intake" in sys.argv:        # quick pass over hand-dropped files (run by cti-capa)
+        _c = sqlite3.connect(DB, timeout=120); init_db(_c)
+        print("manual intake: kept=%d" % intake_manual(_c))
     else:
         main()

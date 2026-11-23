@@ -5,6 +5,8 @@ Description=capa stage: ATT&CK detail for kept samples, verdict for unflagged PE
 Type=oneshot
 WorkingDirectory=/home/user/Desktop/cti
 # flock: never two capa stages at once (each sample takes 4-6 min on this VM)
+# hand-dropped files in ~/Desktop/manual-intake first, so they reach capa in this same run
+ExecStartPre=/usr/bin/flock -w 600 /home/user/.cache/cti-intake.lock /usr/bin/python3 triage.py --intake
 ExecStart=/usr/bin/flock -n /home/user/.cache/cti-capa.lock /usr/bin/python3 triage.py --capa --budget 1500
 ExecStartPost=/usr/bin/python3 build-dashboard.py
 Nice=10
