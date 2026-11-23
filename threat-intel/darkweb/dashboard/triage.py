@@ -23,6 +23,7 @@ import urllib.request, urllib.error, urllib.parse, socket
 HERE   = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import fetchers                       # resolve() + unpack() live next to this file
+import scriptscan                     # static script-loader verdict (PS / WSH / VBS / batch / HTA)
 TG_INTAKE = os.path.expanduser("~/tg-intake")   # files the Telegram collector drops here
 ARCHIVE_DESC = re.compile(r"7-zip|rar archive|zip archive|gzip|tar archive|cabinet|"
                           r"ace archive|arj|xz compressed|bzip2", re.I)
@@ -32,6 +33,8 @@ INSTALLER_DESC = re.compile(r"nullsoft|self-extract|inno setup|installshield|wis
 YARA_MAX_BYTES = 25 * 1024 * 1024   # YARA-scan dropped non-exe up to this (skip giant combolists)
 DB     = os.path.join(HERE, "malware-findings.db")
 QDIR   = os.path.expanduser("~/quarantine")
+RDIR   = os.path.expanduser("~/quarantine-review")   # borderline dark-web PEs: human glance, not RE queue
+KNOWN_FEEDS = ("MalwareBazaar", "MalShare")           # ground-truth baseline feeds (the recall canary)
 UA     = "cti-dashboard"
 
 MAX_FILE_MB      = 50
@@ -40,11 +43,18 @@ MAX_PULL_PER_RUN = 12
 RETENTION_HOURS  = 36         # dark-web finds: ~36h so REs have a weekend's worth
 KNOWN_RETENTION_HOURS = 26    # keep the known board populated between daily pulls (count cap still applies)
 KNOWN_MAX        = 10         # keep at most this many known-feed samples (it is a small reference)
+REVIEW_RETENTION_HOURS = 72   # borderline review items: longer shelf for a spare-time look
+REVIEW_MAX       = 50         # cap the review area so it cannot grow without bound
+REVIEW_MIN_CAPS  = 4          # an unpacked dark-web PE with >= this many capa caps (no malicious NS) -> review
 FETCH_TIMEOUT    = 60
 CAPA_TIMEOUT     = 120
 CAPA_BIN   = os.path.expanduser("~/.local/bin/capa")
 CAPA_RULES = os.path.expanduser("~/capa-rules")
 CAPA_SIGS  = os.path.expanduser("~/capa-sigs")
+
+FLOSS_BIN     = os.path.expanduser("~/.local/bin/floss")
+FLOSS_TIMEOUT = 180
+FLOSS_MAXMB   = 16
 YARC       = os.path.expanduser("~/signature-base.yarc")
 YARA_EXT   = {"filename": "", "filepath": "", "extension": "", "filetype": "", "owner": "", "md5": ""}
 ENTROPY_PACKED = 7.2          # max PE section entropy above this = likely packed
@@ -192,15 +202,23 @@ def yara_families(path):
 
 
 def capa_malicious(path):
-    """Lazy, bounded. (malicious_bool, capability_names[])."""
+    """Lazy, bounded. (malicious_bool, capability_names[], err).
+    err distinguishes a real capa failure from a clean run: "" on success, else
+    "no-capa"/"timeout"/"parse"/"run", so an empty cap list from a crash is never
+    silently read as benign."""
     if not os.path.exists(CAPA_BIN):
-        return False, []
+        return False, [], "no-capa"
     cmd = [CAPA_BIN, "-r", CAPA_RULES, "-s", CAPA_SIGS, "-j", path]
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=CAPA_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return False, [], "timeout"
+    except Exception:
+        return False, [], "run"
+    try:
         d = json.loads(p.stdout)
     except Exception:
-        return False, []
+        return False, [], "parse"        # capa ran but produced no parseable JSON
     caps, mal = [], False
     for name, rule in (d.get("rules") or {}).items():
         meta = rule.get("meta", {}) if isinstance(rule, dict) else {}
@@ -208,17 +226,76 @@ def capa_malicious(path):
         ns = (meta.get("namespace") or "").lower()
         if any(k in ns for k in CAPA_MAL_NS):
             mal = True
-    return mal, caps[:30]
+    return mal, caps[:30], ""
 
 
-def decide(path, cat):
-    """Return (keep_bool, known_bool, family[], reasons[], caps[], imphash, max_entropy, packed)."""
+def script_obfuscation(path):
+    """High-precision obfuscation / LOLBin heuristic for scripts (JS/VBS/PS/batch/python).
+    Returns (suspicious, reasons[]). capa cannot analyse non-PE content, so a novel
+    obfuscated dark-web script with no YARA hit would otherwise score benign and be
+    dropped. This catches the dropper/stager shapes (decode-then-exec chains, encoded-
+    command LOLBins, fully-escaped payloads, long char-code arrays) while staying quiet on
+    ordinary minified or admin code (validated: 0 FP across minified jQuery/React/webpack,
+    JWT atob, Invoke-Command remoting, document.write HTML, python base64)."""
+    try:
+        with open(path, "rb") as f:
+            raw = f.read(4 * 1024 * 1024)
+    except Exception:
+        return False, []
+    t = raw.decode("utf-8", "replace")
+    low = t.lower()
+    reasons = []
+    # 1) decode -> exec chain: an exec sink fed a decode primitive. Sinks are matched as
+    #    CALLS only; the bare "function" keyword is excluded (lowercasing cannot tell the
+    #    Function() constructor from a function declaration, and it is everywhere in minified JS).
+    # Not a method call: RegExp.exec( / re.compile( are everywhere (lodash, pdf.js FP'd on .exec).
+    EXEC   = (r"(?<![\w.$])(?:eval|settimeout|setinterval|setimmediate|document\.write|exec|execute|"
+              r"executeglobal|compile|iex|invoke-expression|invoke-command)\s*\(")
+    DECODE = (r"(?:atob|unescape|fromcharcode|frombase64string|b64decode|marshal\.loads|"
+              r"zlib\.decompress|codecs\.decode|gzipstream|deflatestream)\s*\(")
+    exec_sink = re.search(EXEC, low)
+    chain = re.search(EXEC + r".{0,60}?" + DECODE, low, re.S)
+    # decode primitive aliased to a variable (stored, not called) with an exec sink present:
+    # the indirection pattern eval(_0x(...)) where _0x = atob.
+    # A bare variable, not a member export (lodash: "lodash.unescape = unescape;").
+    alias  = re.search(r"(?<![\w.$])[\w$]+\s*[=:]\s*(?:atob|unescape|frombase64string|fromcharcode)\b\s*[;,)]", low)
+    # constructor fed a string (case-sensitive); Function('return this') is the global-object idiom
+    fnctor = re.search(r"\b(?:Function|eval)\s*\(\s*['\"](?!return this['\"])", t)
+    if chain or (alias and (exec_sink or fnctor)):
+        reasons.append("obf:decode-exec")
+    # 2) encoded-command / LOLBin launcher strings (strong on their own)
+    if (re.search(r"(?:powershell|pwsh)[^\n]{0,80}(?:-e\b|-ec\b|-enc\b|-encodedcommand\b)", low)
+            or re.search(r"-encodedcommand\b", low)
+            or (re.search(r"frombase64string", low) and re.search(r"invoke-expression|\biex\b|\.invoke\(", low))
+            or re.search(r"certutil[^\n]{0,40}-decode", low)
+            or re.search(r"regsvr32[^\n]{0,40}/i:http", low)
+            or re.search(r"mshta[^\n]{0,40}http", low)
+            or re.search(r"bitsadmin[^\n]{0,40}/transfer", low)):
+        reasons.append("obf:lolbin")
+    # 3) body that is mostly escape sequences (a fully-encoded payload, not a stray escape)
+    esc = len(re.findall(r"\\x[0-9a-f]{2}|\\u[0-9a-f]{4}|%[0-9a-f]{2}", low))
+    if esc >= 50 and esc * 4 > len(t) * 0.25:
+        reasons.append("obf:escaped%d" % esc)
+    # 4) long char-code decode array
+    if re.search(r"fromcharcode\s*\(\s*[0-9]{1,3}(?:\s*,\s*[0-9]{1,3}){40,}", low):
+        reasons.append("obf:charcode")
+    return (len(reasons) > 0), reasons
+
+
+def decide(path, cat, script=None):
+    """Return (keep_bool, known_bool, family[], reasons[], caps[], imphash, max_entropy, packed).
+    `script` is scriptscan's (malicious, hits) when the caller already scanned a script."""
     reasons, family, caps = [], [], []
     imp, ent, packed = "", 0.0, False
     family = yara_families(path)                       # fast: attribution
     known = bool(family)
     if known:
         reasons.append("yara:" + family[0])
+    smal = False
+    if cat == "script":
+        smal, shits = script if script else scriptscan.verdict(path)
+        if smal:
+            reasons.append("script:" + "+".join(shits))
     if cat == "pe":
         imp, ent, packed, nimp, tls, anom = pe_anomaly(path)
         if anom:
@@ -228,13 +305,20 @@ def decide(path, cat):
     pk, exo, labels = die_scan(path)                  # fast: packer / toolchain
     if pk:  reasons.append("die:packed")
     if exo: reasons.append("die:exotic")
-    keep = bool(known or anom or pk or exo)
+    obf = False
+    if cat == "script":                               # capa can't read scripts: heuristic safety net
+        obf, oreasons = script_obfuscation(path)
+        if obf:
+            reasons += oreasons
+    keep = bool(known or anom or pk or exo or obf or smal)
     if cat in ("pe", "elf"):                           # capa on EVERY analyzable binary (not lazy)
-        mal, caps = capa_malicious(path)               # -> caps always recorded, for real fidelity
+        mal, caps, cerr = capa_malicious(path)         # -> caps always recorded, for real fidelity
         if mal:
             keep = True
             if "capa:malicious" not in reasons:
                 reasons.append("capa:malicious")
+        elif cerr:                                     # capa could not judge: record WHY (never read []=benign)
+            reasons.append("capa:err:" + cerr)
     return keep, known, family, reasons, caps, imp, ent, packed
 
 
@@ -287,6 +371,29 @@ def prune(c):
     used = sum(x[1] for x in items); i = 0
     while used > BUDGET_MB * 1024 * 1024 and i < len(items):
         drop(items[i][2]); used -= items[i][1]; i += 1
+    # review bucket: its own retention + count cap, separate from the RE quarantine
+    if os.path.isdir(RDIR):
+        rev = []
+        for name in os.listdir(RDIR):
+            if name.startswith("."):
+                continue
+            rp = os.path.join(RDIR, name)
+            try:
+                rev.append((os.path.getmtime(rp), rp))
+            except OSError:
+                pass
+        def rdrop(p):
+            _rm(p)
+            try:
+                c.execute("DELETE FROM triage WHERE sha256=?", (os.path.basename(p.rstrip("/")),))
+            except Exception:
+                pass
+        for mt, rp in rev:
+            if mt < now - REVIEW_RETENTION_HOURS * 3600:
+                rdrop(rp)
+        rev = sorted((x for x in rev if os.path.exists(x[1])), key=lambda x: x[0], reverse=True)
+        for _mt, rp in rev[REVIEW_MAX:]:
+            rdrop(rp)
     c.commit()
 
 
@@ -511,6 +618,40 @@ def write_yara_rule(folder, sample, sha, src, imp):
         fh.write("\n".join(out) + "\n")
 
 
+def _floss_strings(path, cat):
+    """FLOSS deobfuscation: decoded + stack + tight strings that plain `strings` cannot see.
+    PE-only, hard-bounded (emulation is slow). Defensive: any failure returns {} so the RE
+    handoff is never blocked. Returns {decoded:[], stack:[], tight:[]}."""
+    if cat != "pe" or not os.path.exists(FLOSS_BIN) or not os.path.exists(path):
+        return {}
+    try:
+        if os.path.getsize(path) > FLOSS_MAXMB * 1048576:
+            return {}
+    except OSError:
+        return {}
+    cmd = [FLOSS_BIN, "-q", "-j", "--only", "stack", "tight", "decoded", "--", path]
+    try:
+        p = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True,
+                           text=True, timeout=FLOSS_TIMEOUT)
+        d = json.loads(p.stdout)
+    except Exception:
+        return {}
+    strings = d.get("strings", {}) if isinstance(d, dict) else {}
+    def pull(key, n=60):
+        out, seen = [], set()
+        for item in strings.get(key) or []:
+            s = item.get("string") if isinstance(item, dict) else item
+            if not s or s in seen:
+                continue
+            seen.add(s); out.append(s)
+            if len(out) >= n:
+                break
+        return out
+    return {"decoded": pull("decoded_strings"),
+            "stack":   pull("stack_strings"),
+            "tight":   pull("tight_strings")}
+
+
 def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, reasons, caps, imp, ent, packed):
     """Plain-text, category-based record of why this sample is on the dashboard.
     No prose, no em/en dashes: just the facts and the flags that fired. `sample` is the
@@ -548,6 +689,12 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
     mb = [r.split(":", 1)[1] for r in rs if r.startswith("mb:")]
     if mb:
         L.append("  malwarebazaar:  %s" % ", ".join(mb))
+    sc = [r.split(":", 1)[1] for r in rs if r.startswith("script:")]
+    if sc:
+        L.append("  script loader:  %s" % sc[0].replace("+", ", "))
+    obf = [r.split(":", 1)[1] for r in rs if r.startswith("obf:")]
+    if obf:
+        L.append("  obfuscation:    %s" % ", ".join(obf))
     is_pe = cat == "pe" and os.path.exists(sample)
     if is_pe and _pe_tls(sample):
         L.append("  tls callback:   present (code runs before main; common anti-debug)")
@@ -560,7 +707,7 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
         L.append("  capa behaviors:")
         for cap in cps:
             L.append("    %s" % cap)
-    if not (pe or die or ya or mb or cps or packed or crypto):
+    if not (pe or die or ya or mb or sc or obf or cps or packed or crypto):
         L.append("  flagged on: %s" % (", ".join(rs) if rs else "triage heuristics"))
     if is_pe:
         cert = _pe_cert(sample)
@@ -586,6 +733,16 @@ def write_findings(folder, sample, sha, url, src, size, desc, cat, known, fam, r
                 L.append("  %s:" % label)
                 for v in vals:
                     L.append("    %s" % v)
+    floss = _floss_strings(sample, cat) if os.path.exists(sample) else {}
+    if any(floss.values()):
+        L.append("")
+        L.append("[ DECODED STRINGS ]  (FLOSS deobfuscation; hidden from plain strings)")
+        for _lbl, _k in (("decoded", "decoded"), ("stack", "stack"), ("tight", "tight")):
+            _vals = floss.get(_k) or []
+            if _vals:
+                L.append("  %s:" % _lbl)
+                for _v in _vals:
+                    L.append("    %s" % _v)
     L.append("")
     L.append("[ RAW REASONS ]")
     L.append("  %s" % ";".join(rs))
@@ -607,6 +764,32 @@ def _keep_file(c, path, sha, url, src, size, desc, cat, known, fam, reasons, cap
         write_yara_rule(folder, dest, sha, src, imp)
     store(c, sha, url, src, size, desc, cat, 1, known, fam, reasons, caps, imp, ent, packed)
     print("KEEP %s known=%s %s" % (sha[:12], known, reasons))
+
+
+def _review_candidate(cat, src, known, packed, reasons, caps):
+    """A dark-web PE the keep-filter dropped, yet unpacked with several capa capabilities
+    (none in a malicious namespace): not junk, worth a human glance. Excludes the
+    known-malware baseline feeds and anything capa could not analyse."""
+    if cat != "pe" or known or packed:
+        return False
+    if src in KNOWN_FEEDS:
+        return False
+    if any(r.startswith("capa:err") for r in reasons):
+        return False
+    return len(caps) >= REVIEW_MIN_CAPS
+
+
+def _review_file(c, path, sha, url, src, size, desc, cat, fam, reasons, caps, imp, ent, packed):
+    """Park a borderline sample in the review area (kept=2): not an RE keeper, not deleted."""
+    os.makedirs(RDIR, exist_ok=True)
+    ext = os.path.splitext(path)[1][:5] or ext_for(cat, url)
+    folder = os.path.join(RDIR, sha)
+    os.makedirs(folder, exist_ok=True)
+    dest = os.path.join(folder, sha + ext)
+    shutil.move(path, dest)
+    write_findings(folder, dest, sha, url, src, size, desc, cat, 0, fam, reasons, caps, imp, ent, packed)
+    store(c, sha, url, src, size, desc, cat, 2, 0, fam, reasons, caps, imp, ent, packed)
+    print("REVIEW %s %s caps=%d" % (sha[:12], reasons, len(caps)))
 
 
 def triage_one(c, path, url, src, passwords, depth=0):
@@ -638,6 +821,15 @@ def triage_one(c, path, url, src, passwords, depth=0):
             return inner_kept
         # installer IS a PE stub -> fall through and analyse the stub too (payload already done)
 
+    # Script loaders: `file` calls most .ps1/.vbs/.bat "ASCII text", so scan any text-ish file and
+    # promote it to "script" when either script heuristic fires (loader shape here, obfuscation in
+    # decide()); otherwise it stays data/not-exe.
+    script = None
+    if cat in ("script", "data") and size <= scriptscan.MAX_BYTES and scriptscan.is_scriptish(desc, path):
+        script = scriptscan.verdict(path)
+        if cat == "data" and (script[0] or script_obfuscation(path)[0]):
+            cat = "script"
+
     # Non-executable: still worth a YARA pass for known-bad maldocs / webshells / skimmers.
     if cat not in KEEP_EXE:
         fam = yara_families(path) if size <= YARA_MAX_BYTES else []
@@ -648,8 +840,14 @@ def triage_one(c, path, url, src, passwords, depth=0):
         return inner_kept
 
     # Executable: full verdict (YARA attribution + PE anomaly + DIE packer + capa behaviour).
-    keep, known, fam, reasons, caps, imp, ent, packed = decide(path, cat)
+    keep, known, fam, reasons, caps, imp, ent, packed = decide(path, cat, script)
+    if not keep and src in KNOWN_FEEDS and cat in ("pe", "elf", "macho", "script"):
+        keep = True; reasons = list(reasons) + ["feed:forced"]   # recall canary: known-feed sample (incl. script malware) must land
     if not keep:
+        if _review_candidate(cat, src, known, packed, reasons, caps):
+            _review_file(c, path, sha, url, src, size, desc, cat, fam,
+                         list(reasons) + ["review:caps%d" % len(caps)], caps, imp, ent, packed)
+            return inner_kept                           # review item: not an RE keeper, not deleted
         os.remove(path)                                 # false positive -> delete
         store(c, sha, url, src, size, desc, cat, 0, known, fam, reasons or ["benign"], caps, imp, ent, packed)
         return inner_kept

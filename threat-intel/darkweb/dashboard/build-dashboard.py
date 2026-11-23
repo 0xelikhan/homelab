@@ -184,8 +184,21 @@ def malware_block():
     tkblock = (f'<details open><summary>Telegram bot C2 tokens</summary>'
                f'<ul class="dir">{"".join(tkrows)}</ul></details>' if tkrows else '')
     exmain = exblock or '<p class="x">No verified executables yet.</p>'
-    # (dropped the scraped "sample_families" line: names claimed in posts, not tied to samples)
-    return ('<div class="mw">' + exmain + knblock + tkblock + '</div>')
+    hrows = []
+    for h in d.get("hashes", [])[:40]:
+        if not isinstance(h, dict):
+            continue
+        nb = '<span class="newb">NEW</span> ' if h.get("new") else ''
+        fam_tag = (f' <span class="x">({html.escape(str(h["family"]))})</span>'
+                   if h.get("family") else '')
+        hrows.append(
+            f'<li>{nb}<span class="mono">{html.escape(h.get("hash",""))}</span>'
+            f'{fam_tag} <span class="x">{html.escape(h.get("type",""))}'
+            f' · {html.escape(h.get("last","")[:10])}</span> '
+            f'{srclinks(h.get("source_links",[]), h.get("sources",[]))}</li>')
+    hblock = (f'<details open><summary>IOC hashes from posts ({len(hrows)})</summary>'
+              f'<ul class="dir">{chr(34).join(["",""]).join(hrows)}</ul></details>' if hrows else '')
+    return ('<div class="mw">' + famline + exmain + knblock + tkblock + hblock + '</div>')
 
 
 # ---------- live ransomware feed + new-since-last ----------

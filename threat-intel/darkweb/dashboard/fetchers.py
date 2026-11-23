@@ -152,6 +152,8 @@ def _gofile(url):
                 wt = wm.group(1); break
         except Exception:
             continue
+    if not wt:                                           # gofile moved wt into obfuscated JS (/js/wt.obf.js);
+        return []                                        # no wt => /contents 401s, so fail fast as unresolved
     auth = {"Cookie": "accountToken=" + tok, "Authorization": "Bearer " + tok}
 
     def contents(content_id):
