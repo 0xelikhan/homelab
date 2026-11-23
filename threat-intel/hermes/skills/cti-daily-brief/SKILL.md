@@ -100,14 +100,22 @@ Local context (no rate limit, use freely): `/lookup-opencti` (`python3 tools/cli
 (`/indicator-pivoting`) and run a full `/ip-investigation` / `/domain-investigation` /
 `/hash-investigation` / `/url-investigation` on the few most important.
 
-Free-tier pivots (no key, use on a strong hit, not per-IOC): `/lookup-hudsonrock`
-(`node tools/clis/hudsonrock.js domain|email|ip <value>`) checks Hudson Rock infostealer
-stealer-logs for credential exposure; it is the strongest signal for the financial-sector
-targeting and credential-exposure PIRs, so run it on a named victim domain, a key corporate
-email, or a suspect IP. `/lookup-circl-onion` (`node tools/clis/circl-onion.js onion <addr>`)
-dates a dark-web onion (first/last seen) and pulls any crypto addresses and page titles without
-touching Tor; use it on an onion named in a ransomware or leak post. Both are observe-only
-retrieval; never visit the onion or the exposed host.
+**Hudson Rock — mandatory for PIR-1 and PIR-5:** run `/lookup-hudsonrock`
+(`node tools/clis/hudsonrock.js domain|email|ip <value>`) on **every** named victim domain
+and every named corporate email that appears in PIR-1 (financial sector targeting) or PIR-5
+(fraud and credential exposure) items — confirmed breaches, ransomware victim domains, IAB
+access listings, named organisations in infostealer or credential-sale posts. No prior
+"strong hit" is required; a named domain in a claimed or confirmed breach is itself the
+trigger. Infostealer logs predate confirmed breaches by weeks or months, so a hit corroborates
+the report and signals supplier-chain exposure; a miss is still worth one inline note
+(`HR: no exposed credentials found`) because it clears a hypothesis. Record results inline in
+the relevant PIR item, same line format as the other enrichment entries.
+
+**CIRCL Onion — mandatory whenever an onion address appears:** run `/lookup-circl-onion`
+(`node tools/clis/circl-onion.js onion <addr>`) on **every** `.onion` address named in any
+collected item — deepdarkCTI changes, ransomware leak posts, Telegram relays. Record
+first/last seen and any crypto addresses inline in the relevant PIR item. Never visit the
+onion or the exposed host.
 
 Record every lookup result as a plain per-IOC line in the By-PIR section: the IP/domain (with a short
 context tag), then VT detection ratio and verdict, AbuseIPDB score, OTX pulse count. If a specific IOC

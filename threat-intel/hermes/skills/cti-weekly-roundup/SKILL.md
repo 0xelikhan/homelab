@@ -83,12 +83,19 @@ Pace VirusTotal to ~4/min (a short `sleep` between iterations is fine).
 Follow `/ioc-enrichment-workflow` for any net-new IOC and merge it into one record per indicator.
 `/lookup-virustotal`, `/lookup-abuseipdb`, `/lookup-otx` and `/lookup-urlscan` document these CLIs and how
 to read their verdicts. Local context (no rate limit) stays available for pivoting on a strong net-new
-hit: `/lookup-opencti`, `/lookup-misp`, `/lookup-ransomwarelive`, and `/indicator-pivoting`. Free-tier
-pivots (no key, on a strong net-new hit only): `/lookup-hudsonrock`
-(`node tools/clis/hudsonrock.js domain|email|ip <value>`) for infostealer credential exposure, best for
-the financial-sector and credential-exposure PIRs, and `/lookup-circl-onion`
-(`node tools/clis/circl-onion.js onion <addr>`) to date a dark-web onion and pull crypto addresses
-without touching Tor. Record each new result inline (VT ratio + verdict, AbuseIPDB score, OTX pulses);
+hit: `/lookup-opencti`, `/lookup-misp`, `/lookup-ransomwarelive`, and `/indicator-pivoting`. **Hudson Rock — mandatory for PIR-1 and PIR-5 net-new victims:** run `/lookup-hudsonrock`
+(`node tools/clis/hudsonrock.js domain|email|ip <value>`) on every named victim domain and
+every named corporate email that appears for the first time this week in PIR-1 or PIR-5 items
+(breaches, ransomware victims, IAB listings, infostealer targets). Do not re-run domains a
+daily already looked up; carry that result forward. Record each result inline in the ransomware
+victim table or the relevant PIR item (`HR: <n> exposed credentials` or
+`HR: no exposed credentials found`).
+
+**CIRCL Onion — mandatory for net-new onion addresses:** run `/lookup-circl-onion`
+(`node tools/clis/circl-onion.js onion <addr>`) on every `.onion` address that appears in
+this week's top-ups (ransomware.live, deepdarkCTI, any Telegram item) and was not already
+looked up in a daily. Record first/last seen and any crypto addresses inline. Never visit the
+onion. Record each new result inline (VT ratio + verdict, AbuseIPDB score, OTX pulses);
 mark any you could not enrich as `not enriched (<reason>)`. Export the week's vetted IOCs (the dailies'
 set plus any net-new) with `/ioc-export`.
 
